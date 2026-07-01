@@ -6,7 +6,13 @@ const connectDB = require('./config/db');
 const app = express();
 connectDB();
 
-app.use(cors());
+// Middleware
+// need to add cors options for production
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://yourdomain.com'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -22,5 +28,9 @@ app.use('/api/paypal', require('./routes/paypal'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 
+app.use("/", (req, res) => {
+    res.send("Welcome to the API");
+});
+
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port http://localhost:${PORT}`));
