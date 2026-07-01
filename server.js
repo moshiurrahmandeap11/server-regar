@@ -2,9 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const ensureAdminUser = require('./utils/ensureAdminUser');
 
 const app = express();
-connectDB();
 
 // Middleware
 // need to add cors options for production
@@ -33,4 +33,14 @@ app.use("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port http://localhost:${PORT}`));
+
+const startServer = async () => {
+  await connectDB();
+  await ensureAdminUser();
+  app.listen(PORT, () => console.log(`Server running on port http://localhost:${PORT}`));
+};
+
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
