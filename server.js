@@ -9,7 +9,7 @@ connectDB();
 // Middleware
 // need to add cors options for production
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://yourdomain.com'],
+  origin: ['http://localhost:3000', 'https://regar-client.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
