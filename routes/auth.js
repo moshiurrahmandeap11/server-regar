@@ -9,6 +9,7 @@ router.get('/me', auth, authController.getMe);
 router.put('/me', auth, authController.updateMe);
 router.put('/me/password', auth, authController.updatePassword);
 router.get('/', auth, adminOnly, authController.getAllUsers);
+router.get('/:id', auth, adminOnly, authController.getUserDetail);
 router.put('/:id/status', auth, adminOnly, authController.updateUserStatus);
 
 module.exports = router;

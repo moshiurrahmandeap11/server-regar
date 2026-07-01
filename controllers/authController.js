@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const Order = require('../models/Order');
+const Ticket = require('../models/Ticket');
+const Winner = require('../models/Winner');
 const { hashPassword, comparePassword } = require('../utils/bcrypt');
 const { generateToken } = require('../utils/jwt');
 
@@ -88,6 +91,39 @@ exports.updateUserStatus = async (req, res) => {
     const { isActive } = req.body;
     const user = await User.findByIdAndUpdate(req.params.id, { isActive }, { new: true }).select('-password');
     res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getUserDetail = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const [orders, tickets, winners] = await Promise.all([
+      Order.find({ user: user._id }).sort({ createdAt: -1 }).limit(20),
+      Ticket.find({ user: user._id })
+        .populate('raffle', 'name status endDate')
+        .populate('order', 'orderNumber status createdAt')
+        .sort({ createdAt: -1 })
+        .limit(50),
+      Winner.find({ user: user._id })
+        .populate('raffle', 'name status')
+        .populate('ticket', 'ticketNumber drawDate')
+        .sort({ createdAt: -1 })
+        .limit(20),
+    ]);
+
+    const stats = {
+      orders: orders.length,
+      spent: orders.reduce((sum, order) => sum + (order.total || 0), 0),
+      tickets: tickets.length,
+      wins: winners.length,
+      activeTickets: tickets.filter((ticket) => !ticket.isWinner).length,
+    };
+
+    res.json({ user, stats, orders, tickets, winners });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

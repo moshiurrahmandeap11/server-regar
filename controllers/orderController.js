@@ -1,9 +1,17 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Ticket = require('../models/Ticket');
+const Raffle = require('../models/Raffle');
 
 const generateOrderNumber = () => 'REG-' + Date.now().toString(36).toUpperCase();
-const generateTicketNumber = () => 'TKT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+const generateTicketNumbers = (count) => {
+  const unique = new Set();
+  while (unique.size < count) {
+    const candidate = `TKT-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    unique.add(candidate);
+  }
+  return Array.from(unique);
+};
 
 exports.getOrders = async (req, res) => {
   try {
@@ -28,17 +36,84 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
+exports.trackOrder = async (req, res) => {
+  try {
+    const { orderNumber } = req.params;
+    const email = req.query.email?.trim().toLowerCase();
+    const phone = req.query.phone?.trim();
+
+    if (!email && !phone) {
+      return res.status(400).json({ message: 'Email or phone is required' });
+    }
+
+    const order = await Order.findOne({ orderNumber: orderNumber.trim().toUpperCase() })
+      .populate('user', 'firstName lastName email phone');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const userEmail = order.user?.email?.toLowerCase();
+    const userPhone = order.shippingAddress?.phone || order.user?.phone;
+    const isEmailMatch = email && userEmail === email;
+    const isPhoneMatch = phone && userPhone === phone;
+
+    if (!isEmailMatch && !isPhoneMatch) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.createOrder = async (req, res) => {
   try {
     const { items, shippingAddress, subtotal, shipping, discount, total, paymentMethod } = req.body;
-    const orderNumber = generateOrderNumber();
-    const tickets = [];
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'Order items are required' });
+    }
 
+    const orderNumber = generateOrderNumber();
+    const totalTicketCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const tickets = generateTicketNumbers(totalTicketCount);
+
+    const productIds = items.map((item) => item.product).filter(Boolean);
+    const now = new Date();
+    const activeRaffles = await Raffle.find({
+      product: { $in: productIds },
+      status: 'active',
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+    })
+      .select('_id product endDate')
+      .sort({ endDate: 1 });
+
+    const raffleByProduct = new Map();
+    activeRaffles.forEach((raffle) => {
+      const productKey = raffle.product?.toString();
+      if (productKey && !raffleByProduct.has(productKey)) {
+        raffleByProduct.set(productKey, raffle._id);
+      }
+    });
+
+    let ticketOffset = 0;
+    const ticketDocs = [];
     for (const item of items) {
       const qty = item.quantity || 1;
-      for (let i = 0; i < qty; i++) {
-        tickets.push(generateTicketNumber());
+
+      const productId = item.product?.toString();
+      const raffleId = productId ? raffleByProduct.get(productId) : null;
+
+      for (let i = 0; i < qty; i += 1) {
+        ticketDocs.push({
+          ticketNumber: tickets[ticketOffset + i],
+          user: req.user._id,
+          product: item.product,
+          raffle: raffleId || undefined,
+        });
       }
+
+      ticketOffset += qty;
       await Product.findByIdAndUpdate(item.product, { $inc: { soldTickets: qty, stock: -qty } });
     }
 
@@ -48,9 +123,7 @@ exports.createOrder = async (req, res) => {
     });
     await order.save();
 
-    for (const tkt of tickets) {
-      await Ticket.create({ ticketNumber: tkt, user: req.user._id, order: order._id });
-    }
+    await Ticket.insertMany(ticketDocs.map((ticket) => ({ ...ticket, order: order._id })));
 
     res.status(201).json(order);
   } catch (error) {

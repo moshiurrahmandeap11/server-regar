@@ -8,7 +8,7 @@ const productSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   originalPrice: { type: Number },
   images: [{ type: String }],
-  colors: [{ name: String, hex: String }],
+  colors: [{ name: String, hex: String, image: String }],
   sizes: [{ type: String }],
   stock: { type: Number, default: 0 },
   maxTickets: { type: Number, default: 100 },

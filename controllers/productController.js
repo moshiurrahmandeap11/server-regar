@@ -1,5 +1,21 @@
 const Product = require('../models/Product');
 
+const getFilesByField = (files = []) => {
+  return files.reduce((acc, file) => {
+    if (!acc[file.fieldname]) acc[file.fieldname] = [];
+    acc[file.fieldname].push(file.path);
+    return acc;
+  }, {});
+};
+
+const mergeColorImages = (colors = [], filesByField = {}) => {
+  return colors.map((color, index) => {
+    const key = `colorImage_${index}`;
+    const uploaded = filesByField[key]?.[0];
+    return uploaded ? { ...color, image: uploaded } : color;
+  });
+};
+
 exports.getProducts = async (req, res) => {
   try {
     const { category, featured, active, search } = req.query;
@@ -32,12 +48,16 @@ exports.getProductById = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
   try {
-    const images = req.files?.map(f => f.path) || [];
+    const filesByField = getFilesByField(req.files || []);
+    const images = filesByField.images || [];
     const { colors, sizes, ...rest } = req.body;
+    const parsedColors = colors ? JSON.parse(colors) : [];
+    const mergedColors = mergeColorImages(parsedColors, filesByField);
+    const derivedImages = mergedColors.map((color) => color.image).filter(Boolean);
     const product = new Product({
       ...rest,
-      images,
-      colors: colors ? JSON.parse(colors) : [],
+      images: images.length ? images : derivedImages,
+      colors: mergedColors,
       sizes: sizes ? JSON.parse(sizes) : [],
     });
     await product.save();
@@ -51,8 +71,23 @@ exports.updateProduct = async (req, res) => {
   try {
     const { colors, sizes, ...rest } = req.body;
     const updateData = { ...rest };
-    if (req.files?.length) updateData.images = req.files.map(f => f.path);
-    if (colors) updateData.colors = JSON.parse(colors);
+    const filesByField = getFilesByField(req.files || []);
+
+    if (filesByField.images?.length) {
+      updateData.images = filesByField.images;
+    }
+
+    if (colors) {
+      const parsedColors = JSON.parse(colors);
+      const mergedColors = mergeColorImages(parsedColors, filesByField);
+      updateData.colors = mergedColors;
+
+      if (!updateData.images || updateData.images.length === 0) {
+        const derivedImages = mergedColors.map((color) => color.image).filter(Boolean);
+        if (derivedImages.length) updateData.images = derivedImages;
+      }
+    }
+
     if (sizes) updateData.sizes = JSON.parse(sizes);
     const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!product) return res.status(404).json({ message: 'Product not found' });
