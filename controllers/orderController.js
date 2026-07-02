@@ -68,7 +68,14 @@ exports.trackOrder = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, subtotal, shipping, discount, total, paymentMethod } = req.body;
+    const { items, shippingAddress, subtotal, shipping, discount, total } = req.body;
+    const rawPaymentMethod = String(req.body?.paymentMethod || '').toLowerCase();
+    const paymentMethod = rawPaymentMethod === 'card' ? 'stripe' : rawPaymentMethod;
+
+    if (!['stripe', 'manual'].includes(paymentMethod)) {
+      return res.status(400).json({ message: 'Unsupported payment method' });
+    }
+
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Order items are required' });
     }
@@ -145,10 +152,10 @@ exports.updateStatus = async (req, res) => {
 
 exports.updatePayment = async (req, res) => {
   try {
-    const { paymentStatus, paypalOrderId } = req.body;
+    const { paymentStatus, providerPaymentId } = req.body;
     const order = await Order.findByIdAndUpdate(req.params.id, {
       paymentStatus,
-      paypalOrderId,
+      providerPaymentId,
       status: paymentStatus === 'completed' ? 'paid' : 'pending'
     }, { new: true });
     res.json(order);

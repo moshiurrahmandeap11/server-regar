@@ -13,6 +13,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
+
+// Stripe webhook must receive raw body for signature verification.
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), require('./controllers/paymentController').handleStripeWebhook);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -25,7 +29,7 @@ app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/content', require('./routes/content'));
 app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/paypal', require('./routes/paypal'));
+app.use('/api/payments', require('./routes/payments'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 

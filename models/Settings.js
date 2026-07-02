@@ -15,6 +15,13 @@ const settingsSchema = new mongoose.Schema({
     twitter: String,
     tiktok: String,
   },
+  newsletterTemplates: [{
+    name: { type: String, required: true },
+    subject: { type: String, required: true },
+    html: { type: String, required: true },
+    type: { type: String, enum: ['THANK_YOU', 'BULK'], default: 'BULK' },
+    isDefault: { type: Boolean, default: false },
+  }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Settings', settingsSchema);

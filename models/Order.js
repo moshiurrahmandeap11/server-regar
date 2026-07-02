@@ -26,9 +26,9 @@ const orderSchema = new mongoose.Schema({
   discount: { type: Number, default: 0 },
   total: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'], default: 'pending' },
-  paymentMethod: { type: String, enum: ['card', 'paypal'], default: 'card' },
+  paymentMethod: { type: String, enum: ['stripe', 'manual', 'card'], default: 'stripe' },
   paymentStatus: { type: String, enum: ['pending', 'completed', 'failed', 'refunded'], default: 'pending' },
-  paypalOrderId: { type: String },
+  providerPaymentId: { type: String },
   trackingNumber: { type: String },
   tickets: [{ type: String }],
 }, { timestamps: true });
