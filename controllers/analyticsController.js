@@ -1,6 +1,6 @@
 const Order = require('../models/Order');
 const User = require('../models/User');
-const Product = require('../models/Product');
+const Raffle = require('../models/Raffle');
 
 exports.getDashboard = async (req, res) => {
   try {
@@ -10,17 +10,34 @@ exports.getDashboard = async (req, res) => {
     ]);
     const totalOrders = await Order.countDocuments();
     const totalUsers = await User.countDocuments();
-    const activeRaffles = await Product.countDocuments({
-      isActive: true, raffleEndDate: { $gt: new Date() }
+    const activeRaffles = await Raffle.countDocuments({
+      status: 'active',
+      endDate: { $gt: new Date() },
     });
     const recentOrders = await Order.find()
-      .populate('user', 'firstName lastName')
+      .populate('user', 'firstName lastName email')
       .sort({ createdAt: -1 }).limit(10);
     const topProducts = await Order.aggregate([
+      { $match: { paymentStatus: 'completed' } },
       { $unwind: '$items' },
-      { $group: { _id: '$items.name', count: { $sum: '$items.quantity' }, revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } } } },
+      {
+        $group: {
+          _id: '$items.product',
+          name: { $last: '$items.name' },
+          count: { $sum: '$items.quantity' },
+          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+        }
+      },
       { $sort: { count: -1 } },
       { $limit: 5 },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          count: 1,
+          revenue: 1,
+        }
+      }
     ]);
 
     res.json({

@@ -2,6 +2,7 @@ const Faq = require('../models/Faq');
 const Content = require('../models/Content');
 const Settings = require('../models/Settings');
 const Newsletter = require('../models/Newsletter');
+const ContactMessage = require('../models/ContactMessage');
 
 exports.getFaqs = async (req, res) => {
   try {
@@ -72,8 +73,63 @@ exports.getSettings = async (req, res) => {
 
 exports.updateSettings = async (req, res) => {
   try {
-    const settings = await Settings.findOneAndUpdate({}, req.body, { new: true, upsert: true });
+    const settings = await Settings.findOneAndUpdate({}, { $set: req.body }, { new: true, upsert: true });
     res.json(settings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.createContactMessage = async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const contact = await ContactMessage.create({
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      subject: String(subject).trim(),
+      message: String(message).trim(),
+    });
+
+    res.status(201).json({
+      message: 'Message sent successfully',
+      id: contact._id,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getContactMessages = async (req, res) => {
+  try {
+    const status = req.query?.status;
+    const query = status ? { status } : {};
+    const list = await ContactMessage.find(query).sort({ createdAt: -1 });
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateContactMessageStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['new', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const updated = await ContactMessage.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ message: 'Message not found' });
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

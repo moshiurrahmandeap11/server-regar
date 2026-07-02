@@ -50,11 +50,14 @@ exports.getMyTickets = async (req, res) => {
 
 exports.getWinners = async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query?.limit || '0', 10) || 0, 0), 50);
+
     const winners = await Winner.find()
       .populate('user', 'firstName lastName email')
-      .populate('raffle', 'name status')
+      .populate('raffle', 'name nameEn status')
       .populate('ticket', 'ticketNumber drawDate')
-      .sort({ createdAt: -1 });
+      .sort({ drawDate: -1, createdAt: -1 })
+      .limit(limit || 0);
     res.json(winners);
   } catch (error) {
     res.status(500).json({ message: error.message });

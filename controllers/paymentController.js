@@ -47,8 +47,50 @@ exports.createManual = async (req, res) => {
 
 exports.list = async (req, res) => {
   try {
-    const list = await Payment.find().sort({ createdAt: -1 }).populate('userId', 'firstName lastName email');
-    res.json(list);
+    const list = await Payment.find()
+      .sort({ createdAt: -1 })
+      .populate('userId', 'firstName lastName email')
+      .populate('orderId', 'orderNumber total paymentStatus status createdAt');
+
+    const knownOrderIds = new Set(
+      list
+        .map((payment) => payment.orderId?._id || payment.orderId)
+        .filter(Boolean)
+        .map((id) => String(id))
+    );
+
+    const fallbackOrders = await Order.find({
+      paymentMethod: { $in: ['stripe', 'manual'] },
+      _id: { $nin: [...knownOrderIds] },
+    })
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    const synthesized = fallbackOrders.map((order) => ({
+      _id: `order-${order._id}`,
+      orderId: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        paymentStatus: order.paymentStatus,
+        status: order.status,
+        createdAt: order.createdAt,
+      },
+      userId: order.user,
+      amount: order.total,
+      currency: 'CHF',
+      method: order.paymentMethod,
+      status: order.paymentStatus === 'completed' ? 'paid' : 'pending',
+      providerPaymentId: order.providerPaymentId,
+      createdAt: order.createdAt,
+      synthetic: true,
+    }));
+
+    const merged = [...list.map((item) => item.toObject()), ...synthesized]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json(merged);
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -107,6 +149,20 @@ exports.createStripeSession = async (req, res) => {
       paymentStatus: 'pending',
       providerPaymentId: session.id,
     });
+
+    await Payment.findOneAndUpdate(
+      { providerPaymentId: session.id },
+      {
+        orderId,
+        userId: req.user?._id,
+        amount,
+        currency: currency.toUpperCase(),
+        method: 'stripe',
+        status: 'pending',
+        providerPaymentId: session.id,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     res.json({ id: session.id, url: session.url });
   } catch (error) { res.status(500).json({ message: error.message }); }
