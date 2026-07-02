@@ -3,14 +3,48 @@ const Ticket = require('../models/Ticket');
 const Winner = require('../models/Winner');
 const crypto = require('crypto');
 
+const syncExpiredRaffles = async () => {
+  await Raffle.updateMany(
+    { status: 'active', endDate: { $lt: new Date() } },
+    { $set: { status: 'closed' } }
+  );
+};
+
 exports.getRaffles = async (req, res) => {
   try {
-    const { status } = req.query;
+    await syncExpiredRaffles();
+
+    const { status, eligibleForDraw } = req.query;
     const query = status ? { status } : {};
+
     const raffles = await Raffle.find(query)
       .populate('product', 'name nameEn images price soldTickets maxTickets raffleEndDate')
       .sort({ createdAt: -1 });
-    res.json(raffles);
+
+    const ticketCounts = await Ticket.aggregate([
+      { $match: { raffle: { $ne: null } } },
+      { $group: { _id: '$raffle', total: { $sum: 1 } } },
+    ]);
+
+    const ticketCountByRaffle = new Map(ticketCounts.map((row) => [String(row._id), row.total]));
+
+    let enriched = raffles.map((raffle) => {
+      const ticketCount = ticketCountByRaffle.get(String(raffle._id)) || 0;
+      const isEnded = raffle.endDate ? new Date(raffle.endDate) <= new Date() : false;
+      const canDraw = ['active', 'closed'].includes(raffle.status) && !raffle.winner && isEnded && ticketCount > 0;
+
+      return {
+        ...raffle.toObject(),
+        ticketCount,
+        canDraw,
+      };
+    });
+
+    if (eligibleForDraw === 'true') {
+      enriched = enriched.filter((raffle) => raffle.canDraw);
+    }
+
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -18,6 +52,7 @@ exports.getRaffles = async (req, res) => {
 
 exports.getRaffleById = async (req, res) => {
   try {
+    await syncExpiredRaffles();
     const raffle = await Raffle.findById(req.params.id).populate('product').populate('winner', 'firstName lastName');
     if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
     res.json(raffle);
@@ -47,6 +82,8 @@ exports.updateRaffle = async (req, res) => {
 
 exports.drawWinner = async (req, res) => {
   try {
+    await syncExpiredRaffles();
+
     const raffle = await Raffle.findById(req.params.id);
     if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
 
@@ -67,7 +104,7 @@ exports.drawWinner = async (req, res) => {
       return res.status(400).json({ message: 'Winner record already exists for this raffle' });
     }
 
-    const tickets = await Ticket.find({ raffle: raffle._id });
+    const tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
     if (!tickets.length) return res.status(400).json({ message: 'No tickets for this raffle' });
 
     const winnerTicket = tickets[crypto.randomInt(0, tickets.length)];

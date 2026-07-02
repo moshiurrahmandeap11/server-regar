@@ -103,20 +103,56 @@ exports.createOrder = async (req, res) => {
       }
     });
 
+    const raffleIds = [...new Set([...raffleByProduct.values()].map((id) => id.toString()))];
+    const existingParticipationSet = new Set();
+
+    if (raffleIds.length) {
+      const existingParticipations = await Ticket.find({
+        user: req.user._id,
+        raffle: { $in: raffleIds },
+      }).select('raffle');
+
+      existingParticipations.forEach((ticket) => {
+        if (ticket.raffle) existingParticipationSet.add(ticket.raffle.toString());
+      });
+    }
+
+    const participatedInThisOrder = new Set();
+    const participationSkippedProducts = [];
+
     let ticketOffset = 0;
     const ticketDocs = [];
     for (const item of items) {
       const qty = item.quantity || 1;
 
       const productId = item.product?.toString();
-      const raffleId = productId ? raffleByProduct.get(productId) : null;
+      const raffleId = productId ? raffleByProduct.get(productId)?.toString() : null;
+
+      const alreadyParticipated = raffleId
+        ? existingParticipationSet.has(raffleId) || participatedInThisOrder.has(raffleId)
+        : false;
+
+      if (raffleId && alreadyParticipated) {
+        participationSkippedProducts.push(productId);
+      }
 
       for (let i = 0; i < qty; i += 1) {
+        const shouldAssignRaffle = Boolean(
+          raffleId
+          && !existingParticipationSet.has(raffleId)
+          && !participatedInThisOrder.has(raffleId)
+          && i === 0
+        );
+
+        if (shouldAssignRaffle) {
+          participatedInThisOrder.add(raffleId);
+        }
+
         ticketDocs.push({
           ticketNumber: tickets[ticketOffset + i],
           user: req.user._id,
           product: item.product,
-          raffle: raffleId || undefined,
+          raffle: shouldAssignRaffle ? raffleId : undefined,
         });
       }
 
@@ -132,7 +168,9 @@ exports.createOrder = async (req, res) => {
 
     await Ticket.insertMany(ticketDocs.map((ticket) => ({ ...ticket, order: order._id })));
 
-    res.status(201).json(order);
+    const response = order.toObject();
+    response.participationSkippedProducts = [...new Set(participationSkippedProducts)].filter(Boolean);
+    res.status(201).json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
