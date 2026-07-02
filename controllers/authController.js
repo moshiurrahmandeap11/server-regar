@@ -56,6 +56,7 @@ exports.updateMe = async (req, res) => {
     const updateData = { ...req.body };
     delete updateData.password;
     delete updateData.isAdmin;
+    if (req.file) updateData.avatar = req.file.path;
     const user = await User.findByIdAndUpdate(req.user._id, updateData, { new: true }).select('-password');
     res.json(user);
   } catch (error) {
