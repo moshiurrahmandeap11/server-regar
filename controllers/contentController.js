@@ -91,3 +91,31 @@ exports.subscribeNewsletter = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.getNewsletters = async (req, res) => {
+  try {
+    const list = await Newsletter.find().sort({ createdAt: -1 });
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// TEMP: debug endpoint to check latest subscription (no auth) - remove in production
+exports.getLastNewsletter = async (req, res) => {
+  try {
+    const last = await Newsletter.findOne().sort({ createdAt: -1 });
+    res.json(last || null);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.deleteNewsletter = async (req, res) => {
+  try {
+    await Newsletter.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
