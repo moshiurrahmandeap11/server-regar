@@ -23,6 +23,7 @@ app.use('/api/raffles', require('./routes/raffles'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/content', require('./routes/content'));
+app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/paypal', require('./routes/paypal'));
 
