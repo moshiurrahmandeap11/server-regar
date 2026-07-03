@@ -22,6 +22,12 @@ const settingsSchema = new mongoose.Schema({
     type: { type: String, enum: ['THANK_YOU', 'BULK'], default: 'BULK' },
     isDefault: { type: Boolean, default: false },
   }],
+  paymentMethods: [{
+    name: { type: String, required: true },          // e.g. "PayPal", "Payoneer"
+    description: { type: String, default: '' },      // instructions for the user
+    qrImage: { type: String, default: '' },          // Cloudinary URL (optional)
+    isActive: { type: Boolean, default: true },
+  }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Settings', settingsSchema);

@@ -179,6 +179,16 @@ exports.updateMe = async (req, res) => {
     const updateData = { ...req.body };
     delete updateData.password;
     delete updateData.isAdmin;
+
+    // address arrives as a JSON string from multipart/form-data — parse it back
+    if (typeof updateData.address === 'string') {
+      try {
+        updateData.address = JSON.parse(updateData.address);
+      } catch {
+        delete updateData.address;
+      }
+    }
+
     if (req.file) updateData.avatar = req.file.path;
     const user = await User.findByIdAndUpdate(req.user._id, updateData, { new: true }).select('-password');
     res.json(user);

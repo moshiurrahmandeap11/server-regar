@@ -175,3 +175,77 @@ exports.deleteNewsletter = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ─── Payment Methods ──────────────────────────────────────────────────────────
+
+const getOrCreateSettings = async () => {
+  let s = await Settings.findOne();
+  if (!s) s = await Settings.create({});
+  return s;
+};
+
+/** GET /api/content/payment-methods  (public — checkout needs to read them) */
+exports.getPaymentMethods = async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    res.json(Array.isArray(settings.paymentMethods) ? settings.paymentMethods : []);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** POST /api/content/payment-methods  (admin) */
+exports.createPaymentMethod = async (req, res) => {
+  try {
+    const { name, description, isActive } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: 'name is required' });
+    }
+    const qrImage = req.file?.path || '';
+    const settings = await getOrCreateSettings();
+    settings.paymentMethods.push({
+      name: String(name).trim(),
+      description: String(description || '').trim(),
+      qrImage,
+      isActive: isActive !== 'false' && isActive !== false,
+    });
+    await settings.save();
+    const added = settings.paymentMethods[settings.paymentMethods.length - 1];
+    res.status(201).json(added);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** PUT /api/content/payment-methods/:id  (admin) */
+exports.updatePaymentMethod = async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    const method = settings.paymentMethods.id(req.params.id);
+    if (!method) return res.status(404).json({ message: 'Payment method not found' });
+
+    if (req.body.name !== undefined) method.name = String(req.body.name).trim();
+    if (req.body.description !== undefined) method.description = String(req.body.description).trim();
+    if (req.body.isActive !== undefined) method.isActive = req.body.isActive !== 'false' && req.body.isActive !== false;
+    if (req.file?.path) method.qrImage = req.file.path;
+
+    await settings.save();
+    res.json(method);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** DELETE /api/content/payment-methods/:id  (admin) */
+exports.deletePaymentMethod = async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    const method = settings.paymentMethods.id(req.params.id);
+    if (!method) return res.status(404).json({ message: 'Payment method not found' });
+    method.deleteOne();
+    await settings.save();
+    res.json({ message: 'Deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -9,7 +9,7 @@ const stripe = stripeSecret ? stripeLib(stripeSecret) : null;
 
 exports.createManual = async (req, res) => {
   try {
-    const { orderId, amount, txId } = req.body;
+    const { orderId, amount, txId, paymentMethodId, paymentMethodName } = req.body;
     if (!orderId || !amount || !txId) {
       return res.status(400).json({ message: 'orderId, amount and txId are required' });
     }
@@ -31,6 +31,8 @@ exports.createManual = async (req, res) => {
       method: 'manual',
       txId,
       proofUrl,
+      paymentMethodId: paymentMethodId || '',
+      paymentMethodName: paymentMethodName || '',
       status: 'pending',
     });
     await payment.save();

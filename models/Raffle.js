@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const raffleSchema = new mongoose.Schema({
+  raffleNumber: { type: Number, unique: true },
   name: { type: String, required: true },
   nameEn: { type: String },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },

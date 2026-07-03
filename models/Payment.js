@@ -10,6 +10,8 @@ const paymentSchema = new mongoose.Schema({
   providerPaymentId: { type: String },
   proofUrl: { type: String },
   txId: { type: String },
+  paymentMethodId: { type: String, default: '' },   // Settings.paymentMethods subdoc _id
+  paymentMethodName: { type: String, default: '' }, // snapshot of the name at submit time
   adminNote: { type: String },
 }, { timestamps: true });
 

@@ -14,11 +14,12 @@ exports.getRaffles = async (req, res) => {
   try {
     await syncExpiredRaffles();
 
-    const { status, eligibleForDraw } = req.query;
+    const { status, eligibleForDraw, product } = req.query;
     const query = status ? { status } : {};
+    if (product) query.product = product;
 
     const raffles = await Raffle.find(query)
-      .populate('product', 'name nameEn images price soldTickets maxTickets raffleEndDate')
+      .populate('product', 'name nameEn description descriptionEn images price soldTickets maxTickets raffleEndDate')
       .sort({ createdAt: -1 });
 
     const ticketCounts = await Ticket.aggregate([
@@ -63,7 +64,11 @@ exports.getRaffleById = async (req, res) => {
 
 exports.createRaffle = async (req, res) => {
   try {
-    const raffle = new Raffle(req.body);
+    // Auto-assign the next raffle number
+    const last = await Raffle.findOne({}, { raffleNumber: 1 }).sort({ raffleNumber: -1 });
+    const nextNumber = (last?.raffleNumber || 0) + 1;
+
+    const raffle = new Raffle({ ...req.body, raffleNumber: nextNumber });
     await raffle.save();
     res.status(201).json(raffle);
   } catch (error) {

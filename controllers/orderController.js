@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const Ticket = require('../models/Ticket');
 const Raffle = require('../models/Raffle');
 const User = require('../models/User');
+const Payment = require('../models/Payment');
 const { sendInvoiceEmail } = require('../utils/sendInvoiceEmail');
 
 const generateOrderNumber = () => 'REG-' + Date.now().toString(36).toUpperCase();
@@ -18,8 +19,41 @@ const generateTicketNumbers = (count) => {
 exports.getOrders = async (req, res) => {
   try {
     const query = req.user.isAdmin ? {} : { user: req.user._id };
-    const orders = await Order.find(query).populate('user', 'firstName lastName email').sort({ createdAt: -1 });
-    res.json(orders);
+    const orders = await Order.find(query)
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    // Attach payment info and raffle info for each order
+    const orderIds = orders.map((o) => o._id);
+
+    const [payments, tickets] = await Promise.all([
+      Payment.find({ orderId: { $in: orderIds } }).sort({ createdAt: -1 }),
+      Ticket.find({ order: { $in: orderIds } })
+        .populate('raffle', 'name nameEn raffleNumber status')
+        .select('order raffle ticketNumber'),
+    ]);
+
+    const paymentByOrder = new Map();
+    payments.forEach((p) => {
+      const key = String(p.orderId);
+      if (!paymentByOrder.has(key)) paymentByOrder.set(key, p);
+    });
+
+    const ticketsByOrder = new Map();
+    tickets.forEach((t) => {
+      const key = String(t.order);
+      if (!ticketsByOrder.has(key)) ticketsByOrder.set(key, []);
+      ticketsByOrder.get(key).push(t);
+    });
+
+    const enriched = orders.map((order) => {
+      const o = order.toObject();
+      o.paymentInfo = paymentByOrder.get(String(o._id)) || null;
+      o.ticketDocs = ticketsByOrder.get(String(o._id)) || [];
+      return o;
+    });
+
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
