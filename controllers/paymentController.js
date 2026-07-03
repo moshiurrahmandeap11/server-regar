@@ -1,6 +1,8 @@
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
+const User = require('../models/User');
 const stripeLib = require('stripe');
+const { sendInvoiceEmail } = require('../utils/sendInvoiceEmail');
 
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? stripeLib(stripeSecret) : null;

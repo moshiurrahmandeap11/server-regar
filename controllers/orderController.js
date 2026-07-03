@@ -2,6 +2,8 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Ticket = require('../models/Ticket');
 const Raffle = require('../models/Raffle');
+const User = require('../models/User');
+const { sendInvoiceEmail } = require('../utils/sendInvoiceEmail');
 
 const generateOrderNumber = () => 'REG-' + Date.now().toString(36).toUpperCase();
 const generateTicketNumbers = (count) => {
@@ -131,6 +133,20 @@ exports.createOrder = async (req, res) => {
     await order.save();
 
     await Ticket.insertMany(ticketDocs.map((ticket) => ({ ...ticket, order: order._id })));
+
+    // Send invoice email (fire-and-forget — never block the response)
+    try {
+      const user = await User.findById(req.user._id).select('email firstName');
+      if (user?.email) {
+        sendInvoiceEmail({
+          to: user.email,
+          firstName: user.firstName,
+          order: order.toObject(),
+        }).catch((err) => console.error('Invoice email failed:', err.message));
+      }
+    } catch (mailErr) {
+      console.error('Invoice email setup failed:', mailErr.message);
+    }
 
     res.status(201).json(order);
   } catch (error) {
