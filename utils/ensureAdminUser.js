@@ -21,6 +21,7 @@ const ensureAdminUser = async () => {
       lastName: 'Regar',
       isAdmin: true,
       isActive: true,
+      emailVerified: true,
       ageVerified: true,
       preferences: { language: 'fr', newsletter: false },
     });
@@ -32,6 +33,11 @@ const ensureAdminUser = async () => {
 
   if (!existingUser.isAdmin) {
     existingUser.isAdmin = true;
+    shouldSave = true;
+  }
+
+  if (!existingUser.emailVerified) {
+    existingUser.emailVerified = true;
     shouldSave = true;
   }
 

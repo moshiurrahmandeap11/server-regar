@@ -15,6 +15,11 @@ const userSchema = new mongoose.Schema({
   },
   isAdmin: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
+  emailVerified: { type: Boolean, default: false },
+  emailVerifyToken: { type: String },
+  emailVerifyExpires: { type: Date },
+  passwordResetToken: { type: String },
+  passwordResetExpires: { type: Date },
   ageVerified: { type: Boolean, default: false },
   preferences: {
     newsletter: { type: Boolean, default: false },

@@ -104,7 +104,24 @@ exports.drawWinner = async (req, res) => {
       return res.status(400).json({ message: 'Winner record already exists for this raffle' });
     }
 
-    const tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
+    let tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
+
+    if (!tickets.length && raffle.product) {
+      const backfillQuery = {
+        $or: [{ raffle: { $exists: false } }, { raffle: null }],
+        product: raffle.product,
+      };
+
+      if (raffle.startDate || raffle.endDate) {
+        backfillQuery.createdAt = {};
+        if (raffle.startDate) backfillQuery.createdAt.$gte = raffle.startDate;
+        if (raffle.endDate) backfillQuery.createdAt.$lte = raffle.endDate;
+      }
+
+      await Ticket.updateMany(backfillQuery, { $set: { raffle: raffle._id } });
+      tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
+    }
+
     if (!tickets.length) return res.status(400).json({ message: 'No tickets for this raffle' });
 
     const winnerTicket = tickets[crypto.randomInt(0, tickets.length)];

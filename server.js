@@ -9,7 +9,7 @@ const app = express();
 // Middleware
 // need to add cors options for production
 app.use(cors({
-  origin: ['http://localhost:3004', 'https://regar-client.vercel.app'],
+  origin: ['http://localhost:3000', 'https://regar-client.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));

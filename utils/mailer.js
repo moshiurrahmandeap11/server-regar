@@ -8,7 +8,7 @@ const getTransporter = () => {
   const host = process.env.EMAIL_HOST;
   const port = Number(process.env.EMAIL_PORT || 587);
   const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
+  const pass = (process.env.EMAIL_PASS || '').replace(/\s+/g, '');
 
   if (!host || !user || !pass) {
     return null;
