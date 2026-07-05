@@ -7,6 +7,7 @@ router.get('/', raffleController.getRaffles);
 router.get('/:id', raffleController.getRaffleById);
 router.post('/', auth, adminOnly, raffleController.createRaffle);
 router.put('/:id', auth, adminOnly, raffleController.updateRaffle);
+router.delete('/:id', auth, adminOnly, raffleController.deleteRaffle);
 router.post('/:id/draw', auth, adminOnly, raffleController.drawWinner);
 
 module.exports = router;

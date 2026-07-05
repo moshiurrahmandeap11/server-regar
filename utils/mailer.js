@@ -31,7 +31,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     return { sent: false, skipped: true, reason: 'SMTP config is missing' };
   }
 
-  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'support@regar.ch';
   await transporter.sendMail({ from, to, subject, html, text });
 
   return { sent: true };

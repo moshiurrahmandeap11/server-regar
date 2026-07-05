@@ -89,7 +89,36 @@ exports.createRaffle = async (req, res) => {
 exports.updateRaffle = async (req, res) => {
   try {
     const raffle = await Raffle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
     res.json(raffle);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.deleteRaffle = async (req, res) => {
+  try {
+    const raffle = await Raffle.findById(req.params.id);
+    if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
+
+    const [winnerResult, ticketResult] = await Promise.all([
+      Winner.deleteMany({ raffle: raffle._id }),
+      Ticket.updateMany(
+        { raffle: raffle._id },
+        {
+          $unset: { raffle: '', prize: '', drawDate: '' },
+          $set: { isWinner: false },
+        }
+      ),
+    ]);
+
+    await Raffle.findByIdAndDelete(raffle._id);
+
+    res.json({
+      message: 'Raffle deleted',
+      detachedTickets: ticketResult.modifiedCount || 0,
+      deletedWinners: winnerResult.deletedCount || 0,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
