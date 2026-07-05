@@ -124,6 +124,22 @@ exports.createOrder = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { status, trackingNumber } = req.body;
+    const allowedStatuses = ['awaiting_payment', 'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
+    const paidOnlyStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid order status' });
+    }
+
+    const existing = await Order.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Order not found' });
+
+    if (paidOnlyStatuses.includes(status) && existing.paymentStatus !== 'completed') {
+      return res.status(400).json({
+        message: 'Approve/complete the payment before moving this order to a paid or fulfillment status',
+      });
+    }
+
     const update = { status };
     if (trackingNumber) update.trackingNumber = trackingNumber;
     const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true });

@@ -5,6 +5,7 @@ const settingsSchema = new mongoose.Schema({
   siteNameEn: { type: String, default: 'Regar' },
   contactEmail: { type: String, default: 'contact@regar.ch' },
   contactPhone: { type: String, default: '+41 79 123 45 67' },
+  contactLocation: { type: String, default: 'Lausanne, Suisse' },
   currency: { type: String, default: 'CHF' },
   shippingCost: { type: Number, default: 9.90 },
   freeShippingThreshold: { type: Number, default: 100 },

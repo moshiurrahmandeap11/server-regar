@@ -31,12 +31,16 @@ exports.getAllTickets = async (req, res) => {
       await backfillMissingTicketRaffles();
     }
 
-    const tickets = await Ticket.find(query)
+    let tickets = await Ticket.find(query)
       .populate('user', 'firstName lastName email')
       .populate('order', 'orderNumber status paymentStatus createdAt')
       .populate('product', 'name images')
       .populate('raffle', 'name nameEn raffleNumber status endDate')
       .sort({ createdAt: -1 });
+
+    if (status === 'active') {
+      tickets = tickets.filter((ticket) => ticket.order?.paymentStatus === 'completed');
+    }
 
     res.json(tickets);
   } catch (error) {
@@ -53,7 +57,7 @@ exports.getMyTickets = async (req, res) => {
       .populate('raffle', 'name raffleNumber endDate')
       .populate('order', 'orderNumber status paymentStatus createdAt')
       .sort({ createdAt: -1 });
-    res.json(tickets);
+    res.json(tickets.filter((ticket) => ticket.order?.paymentStatus === 'completed'));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
