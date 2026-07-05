@@ -7,12 +7,33 @@ const ensureAdminUser = require('./utils/ensureAdminUser');
 const app = express();
 
 // Middleware
-// need to add cors options for production
-app.use(cors({
-  origin: ['http://localhost:3000', 'https://regar-client.vercel.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3100',
+  'https://regar.ch',
+  'https://www.regar.ch',
+  'https://regar-client.vercel.app',
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+]
+  .filter(Boolean)
+  .flatMap((origin) => origin.split(','))
+  .map((origin) => origin.trim().replace(/\/$/, ''));
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Stripe webhook must receive raw body for signature verification.
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), require('./controllers/paymentController').handleStripeWebhook);

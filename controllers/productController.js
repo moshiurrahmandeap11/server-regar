@@ -1,4 +1,14 @@
 const Product = require('../models/Product');
+const mongoose = require('mongoose');
+
+const findProductBySlugOrName = async (identifier) => {
+  const product = await Product.findOne({ slug: identifier });
+  if (product) return product;
+
+  const candidates = await Product.find({}, 'name nameEn slug').lean();
+  const match = candidates.find((item) => Product.slugify(item.nameEn || item.name) === identifier);
+  return match ? Product.findById(match._id) : null;
+};
 
 const getFilesByField = (files = []) => {
   return files.reduce((acc, file) => {
@@ -30,6 +40,7 @@ exports.getProducts = async (req, res) => {
       ];
     }
     const products = await Product.find(query).sort({ createdAt: -1 });
+    await Promise.all(products.map((product) => product.ensureSlug()));
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -38,8 +49,16 @@ exports.getProducts = async (req, res) => {
 
 exports.getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const identifier = req.params.id;
+    let product = null;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      product = await Product.findById(identifier);
+    }
+    if (!product) {
+      product = await findProductBySlugOrName(identifier);
+    }
     if (!product) return res.status(404).json({ message: 'Product not found' });
+    await product.ensureSlug();
     res.json(product);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -89,7 +108,11 @@ exports.updateProduct = async (req, res) => {
     }
 
     if (sizes) updateData.sizes = JSON.parse(sizes);
-    const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (updateData.name || updateData.nameEn) {
+      updateData.slug = await Product.createUniqueSlug(updateData.nameEn || updateData.name, req.params.id);
+    }
+
+    const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
   } catch (error) {

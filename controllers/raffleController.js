@@ -1,6 +1,8 @@
 const Raffle = require('../models/Raffle');
 const Ticket = require('../models/Ticket');
 const Winner = require('../models/Winner');
+const Product = require('../models/Product');
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const syncExpiredRaffles = async () => {
@@ -16,11 +18,19 @@ exports.getRaffles = async (req, res) => {
 
     const { status, eligibleForDraw, product } = req.query;
     const query = status ? { status } : {};
-    if (product) query.product = product;
+    if (product) {
+      if (mongoose.Types.ObjectId.isValid(product)) {
+        query.product = product;
+      } else {
+        const productDoc = await Product.findOne({ slug: product }).select('_id');
+        query.product = productDoc?._id || null;
+      }
+    }
 
     const raffles = await Raffle.find(query)
-      .populate('product', 'name nameEn description descriptionEn images price soldTickets maxTickets raffleEndDate')
+      .populate('product', 'name nameEn slug description descriptionEn images price soldTickets maxTickets raffleEndDate')
       .sort({ createdAt: -1 });
+    await Promise.all(raffles.map((raffle) => raffle.product?.ensureSlug?.()).filter(Boolean));
 
     const ticketCounts = await Ticket.aggregate([
       { $match: { raffle: { $ne: null } } },
