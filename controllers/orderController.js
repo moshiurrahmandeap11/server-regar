@@ -1,20 +1,9 @@
 const Order = require('../models/Order');
-const Product = require('../models/Product');
 const Ticket = require('../models/Ticket');
-const Raffle = require('../models/Raffle');
-const User = require('../models/User');
 const Payment = require('../models/Payment');
-const { sendInvoiceEmail } = require('../utils/sendInvoiceEmail');
+const { fulfillPaidOrder } = require('../utils/orderFulfillment');
 
 const generateOrderNumber = () => 'REG-' + Date.now().toString(36).toUpperCase();
-const generateTicketNumbers = (count) => {
-  const unique = new Set();
-  while (unique.size < count) {
-    const candidate = `TKT-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    unique.add(candidate);
-  }
-  return Array.from(unique);
-};
 
 exports.getOrders = async (req, res) => {
   try {
@@ -117,70 +106,14 @@ exports.createOrder = async (req, res) => {
     }
 
     const orderNumber = generateOrderNumber();
-    const totalTicketCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
-    const tickets = generateTicketNumbers(totalTicketCount);
-
-    const productIds = items.map((item) => item.product).filter(Boolean);
-    const now = new Date();
-    const activeRaffles = await Raffle.find({
-      product: { $in: productIds },
-      status: 'active',
-      startDate: { $lte: now },
-      endDate: { $gte: now },
-    })
-      .select('_id product endDate')
-      .sort({ endDate: 1 });
-
-    const raffleByProduct = new Map();
-    activeRaffles.forEach((raffle) => {
-      const productKey = raffle.product?.toString();
-      if (productKey && !raffleByProduct.has(productKey)) {
-        raffleByProduct.set(productKey, raffle._id);
-      }
-    });
-
-    let ticketOffset = 0;
-    const ticketDocs = [];
-    for (const item of items) {
-      const qty = item.quantity || 1;
-
-      const productId = item.product?.toString();
-      const raffleId = productId ? raffleByProduct.get(productId) : null;
-
-      for (let i = 0; i < qty; i += 1) {
-        ticketDocs.push({
-          ticketNumber: tickets[ticketOffset + i],
-          user: req.user._id,
-          product: item.product,
-          raffle: raffleId || undefined,
-        });
-      }
-
-      ticketOffset += qty;
-      await Product.findByIdAndUpdate(item.product, { $inc: { soldTickets: qty, stock: -qty } });
-    }
-
     const order = new Order({
       user: req.user._id, orderNumber, items, shippingAddress,
-      subtotal, shipping, discount, total, paymentMethod, tickets,
+      subtotal, shipping, discount, total, paymentMethod,
+      paymentStatus: 'pending',
+      status: 'awaiting_payment',
+      tickets: [],
     });
     await order.save();
-
-    await Ticket.insertMany(ticketDocs.map((ticket) => ({ ...ticket, order: order._id })));
-
-    // Send invoice email (fire-and-forget — never block the response)
-    try {
-      const user = await User.findById(req.user._id).select('email firstName');
-      if (user?.email) {
-        sendInvoiceEmail({
-          to: user.email,
-          firstName: user.firstName,
-          order: order.toObject(),
-        }).catch((err) => console.error('Invoice email failed:', err.message));
-      }
-    } catch (mailErr) {
-      console.error('Invoice email setup failed:', mailErr.message);
-    }
 
     res.status(201).json(order);
   } catch (error) {
@@ -203,11 +136,13 @@ exports.updateStatus = async (req, res) => {
 exports.updatePayment = async (req, res) => {
   try {
     const { paymentStatus, providerPaymentId } = req.body;
-    const order = await Order.findByIdAndUpdate(req.params.id, {
-      paymentStatus,
-      providerPaymentId,
-      status: paymentStatus === 'completed' ? 'paid' : 'pending'
-    }, { new: true });
+    const order = paymentStatus === 'completed'
+      ? await fulfillPaidOrder(req.params.id, { providerPaymentId })
+      : await Order.findByIdAndUpdate(req.params.id, {
+        paymentStatus,
+        providerPaymentId,
+        status: paymentStatus === 'failed' ? 'cancelled' : 'awaiting_payment',
+      }, { new: true });
     res.json(order);
   } catch (error) {
     res.status(500).json({ message: error.message });

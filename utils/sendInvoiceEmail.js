@@ -154,7 +154,7 @@ const sendInvoiceEmail = async ({ to, firstName, order }) => {
 
         <!-- Footer -->
         <p style="margin:32px 0 0;font-size:12px;color:#9ca3af;text-align:center;line-height:1.6;">
-          Questions? Contact us at <a href="mailto:${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'support@regar.ch'}" style="color:#6b7280;">${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'support@regar.ch'}</a><br>
+          Questions? Contact us at <a href="mailto:${process.env.EMAIL_USER || 'contact@regar.ch'}" style="color:#6b7280;">${process.env.EMAIL_USER || 'contact@regar.ch'}</a><br>
           © ${new Date().getFullYear()} ${SITE_NAME}. All rights reserved.
         </p>
       </div>

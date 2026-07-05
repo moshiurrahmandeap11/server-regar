@@ -1,8 +1,7 @@
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
-const User = require('../models/User');
 const stripeLib = require('stripe');
-const { sendInvoiceEmail } = require('../utils/sendInvoiceEmail');
+const { fulfillPaidOrder } = require('../utils/orderFulfillment');
 
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? stripeLib(stripeSecret) : null;
@@ -40,7 +39,7 @@ exports.createManual = async (req, res) => {
     await Order.findByIdAndUpdate(orderId, {
       paymentMethod: 'manual',
       paymentStatus: 'pending',
-      status: 'pending',
+      status: 'awaiting_payment',
     });
 
     res.status(201).json(payment);
@@ -106,9 +105,7 @@ exports.approve = async (req, res) => {
   try {
     const p = await Payment.findByIdAndUpdate(req.params.id, { status: 'approved', adminNote: req.body.note || '' }, { new: true });
     if (p && p.orderId) {
-      await Order.findByIdAndUpdate(p.orderId, {
-        paymentStatus: 'completed',
-        status: 'paid',
+      await fulfillPaidOrder(p.orderId, {
         paymentMethod: p.method,
         providerPaymentId: p.txId || p._id.toString(),
       });
@@ -118,7 +115,16 @@ exports.approve = async (req, res) => {
 };
 
 exports.decline = async (req, res) => {
-  try { const p = await Payment.findByIdAndUpdate(req.params.id, { status: 'declined', adminNote: req.body.note || '' }, { new: true }); res.json(p); } catch (error) { res.status(500).json({ message: error.message }); }
+  try {
+    const p = await Payment.findByIdAndUpdate(req.params.id, { status: 'declined', adminNote: req.body.note || '' }, { new: true });
+    if (p?.orderId) {
+      await Order.findByIdAndUpdate(p.orderId, {
+        paymentStatus: 'failed',
+        status: 'cancelled',
+      });
+    }
+    res.json(p);
+  } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
 exports.createStripeSession = async (req, res) => {
@@ -151,6 +157,7 @@ exports.createStripeSession = async (req, res) => {
     await Order.findByIdAndUpdate(orderId, {
       paymentMethod: 'stripe',
       paymentStatus: 'pending',
+      status: 'awaiting_payment',
       providerPaymentId: session.id,
     });
 
@@ -199,9 +206,7 @@ exports.handleStripeWebhook = async (req, res) => {
     );
 
     if (orderId) {
-      await Order.findByIdAndUpdate(orderId, {
-        paymentStatus: 'completed',
-        status: 'paid',
+      await fulfillPaidOrder(orderId, {
         paymentMethod: 'stripe',
         providerPaymentId: session.id,
       });

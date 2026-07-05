@@ -1,5 +1,7 @@
 const Ticket = require('../models/Ticket');
 const Winner = require('../models/Winner');
+const Raffle = require('../models/Raffle');
+const { backfillMissingTicketRaffles, backfillTicketsForRaffle } = require('../utils/raffleAssignment');
 
 exports.getAllTickets = async (req, res) => {
   try {
@@ -22,11 +24,18 @@ exports.getAllTickets = async (req, res) => {
       query.isWinner = false;
     }
 
+    if (raffle) {
+      const raffleDoc = await Raffle.findById(raffle).select('_id product startDate endDate');
+      if (raffleDoc) await backfillTicketsForRaffle(raffleDoc);
+    } else {
+      await backfillMissingTicketRaffles();
+    }
+
     const tickets = await Ticket.find(query)
       .populate('user', 'firstName lastName email')
-      .populate('order', 'orderNumber status createdAt')
+      .populate('order', 'orderNumber status paymentStatus createdAt')
       .populate('product', 'name images')
-      .populate('raffle', 'name status endDate')
+      .populate('raffle', 'name nameEn raffleNumber status endDate')
       .sort({ createdAt: -1 });
 
     res.json(tickets);
@@ -37,10 +46,12 @@ exports.getAllTickets = async (req, res) => {
 
 exports.getMyTickets = async (req, res) => {
   try {
+    await backfillMissingTicketRaffles({ user: req.user._id });
+
     const tickets = await Ticket.find({ user: req.user._id })
       .populate('product', 'name images')
-      .populate('raffle', 'name endDate')
-      .populate('order', 'orderNumber status createdAt')
+      .populate('raffle', 'name raffleNumber endDate')
+      .populate('order', 'orderNumber status paymentStatus createdAt')
       .sort({ createdAt: -1 });
     res.json(tickets);
   } catch (error) {
@@ -66,10 +77,12 @@ exports.getWinners = async (req, res) => {
 
 exports.getTicketByNumber = async (req, res) => {
   try {
+    await backfillMissingTicketRaffles();
+
     const ticket = await Ticket.findOne({ ticketNumber: req.params.ticketNumber.trim().toUpperCase() })
       .populate('user', 'firstName lastName')
-      .populate('order', 'orderNumber createdAt status')
-      .populate('raffle', 'name endDate')
+      .populate('order', 'orderNumber createdAt status paymentStatus')
+      .populate('raffle', 'name raffleNumber endDate')
       .populate('product', 'name images');
 
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });

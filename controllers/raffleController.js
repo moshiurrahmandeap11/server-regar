@@ -4,6 +4,12 @@ const Winner = require('../models/Winner');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const {
+  backfillMissingTicketRaffles,
+  backfillTicketsForRaffle,
+  isDrawEligibleOrder,
+  paidTicketCountAggregation,
+} = require('../utils/raffleAssignment');
 
 const syncExpiredRaffles = async () => {
   await Raffle.updateMany(
@@ -31,11 +37,9 @@ exports.getRaffles = async (req, res) => {
       .populate('product', 'name nameEn slug description descriptionEn images price soldTickets maxTickets raffleEndDate')
       .sort({ createdAt: -1 });
     await Promise.all(raffles.map((raffle) => raffle.product?.ensureSlug?.()).filter(Boolean));
+    await backfillMissingTicketRaffles();
 
-    const ticketCounts = await Ticket.aggregate([
-      { $match: { raffle: { $ne: null } } },
-      { $group: { _id: '$raffle', total: { $sum: 1 } } },
-    ]);
+    const ticketCounts = await Ticket.aggregate(paidTicketCountAggregation());
 
     const ticketCountByRaffle = new Map(ticketCounts.map((row) => [String(row._id), row.total]));
 
@@ -148,23 +152,11 @@ exports.drawWinner = async (req, res) => {
       return res.status(400).json({ message: 'Winner record already exists for this raffle' });
     }
 
-    let tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
+    await backfillTicketsForRaffle(raffle);
 
-    if (!tickets.length && raffle.product) {
-      const backfillQuery = {
-        $or: [{ raffle: { $exists: false } }, { raffle: null }],
-        product: raffle.product,
-      };
-
-      if (raffle.startDate || raffle.endDate) {
-        backfillQuery.createdAt = {};
-        if (raffle.startDate) backfillQuery.createdAt.$gte = raffle.startDate;
-        if (raffle.endDate) backfillQuery.createdAt.$lte = raffle.endDate;
-      }
-
-      await Ticket.updateMany(backfillQuery, { $set: { raffle: raffle._id } });
-      tickets = await Ticket.find({ raffle: raffle._id, isWinner: false });
-    }
+    const tickets = (await Ticket.find({ raffle: raffle._id, isWinner: false })
+      .populate('order', 'status paymentStatus'))
+      .filter((ticket) => isDrawEligibleOrder(ticket.order));
 
     if (!tickets.length) return res.status(400).json({ message: 'No tickets for this raffle' });
 
