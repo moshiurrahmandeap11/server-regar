@@ -15,7 +15,7 @@ exports.getDashboard = async (req, res) => {
       User.countDocuments(),
       Raffle.countDocuments({ status: 'active', endDate: { $gt: now } }),
       Order.find()
-        .populate('user', 'firstName lastName email')
+        .populate('user', 'firstName lastName email avatar')
         .sort({ createdAt: -1 })
         .limit(10),
       Order.aggregate([
