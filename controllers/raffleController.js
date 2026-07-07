@@ -19,6 +19,18 @@ const syncExpiredRaffles = async () => {
   );
 };
 
+// Helper: merge uploaded prize images with prize data
+const mergePrizeImages = (prizes = [], files = []) => {
+  const prizeImages = files
+    .filter((f) => f.fieldname.startsWith('prizeImage_'))
+    .map((f) => f.path);
+  
+  return prizes.map((prize, index) => {
+    const uploadedImage = prizeImages[index];
+    return uploadedImage ? { ...prize, image: uploadedImage } : prize;
+  });
+};
+
 exports.getRaffles = async (req, res) => {
   try {
     await syncExpiredRaffles();
@@ -83,7 +95,15 @@ exports.createRaffle = async (req, res) => {
     const last = await Raffle.findOne({}, { raffleNumber: 1 }).sort({ raffleNumber: -1 });
     const nextNumber = (last?.raffleNumber || 0) + 1;
 
-    const raffle = new Raffle({ ...req.body, raffleNumber: nextNumber });
+    const { prizes, ...rest } = req.body;
+    const parsedPrizes = prizes ? JSON.parse(prizes) : [];
+    const mergedPrizes = mergePrizeImages(parsedPrizes, req.files || []);
+
+    const raffle = new Raffle({ 
+      ...rest, 
+      raffleNumber: nextNumber,
+      prizes: mergedPrizes,
+    });
     await raffle.save();
     res.status(201).json(raffle);
   } catch (error) {
@@ -93,7 +113,15 @@ exports.createRaffle = async (req, res) => {
 
 exports.updateRaffle = async (req, res) => {
   try {
-    const raffle = await Raffle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { prizes, ...rest } = req.body;
+    const updateData = { ...rest };
+
+    if (prizes) {
+      const parsedPrizes = JSON.parse(prizes);
+      updateData.prizes = mergePrizeImages(parsedPrizes, req.files || []);
+    }
+
+    const raffle = await Raffle.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
     res.json(raffle);
   } catch (error) {
