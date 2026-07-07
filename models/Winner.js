@@ -11,6 +11,7 @@ const winnerSchema = new mongoose.Schema({
   claimedAt: { type: Date },
   shippedAt: { type: Date },
   trackingNumber: { type: String },
+  isSeeded: { type: Boolean, default: false },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Winner', winnerSchema);
