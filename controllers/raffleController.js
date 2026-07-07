@@ -4,6 +4,7 @@ const Winner = require('../models/Winner');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const { createNotification } = require('../controllers/notificationController');
 const {
   backfillMissingTicketRaffles,
   backfillTicketsForRaffle,
@@ -174,6 +175,15 @@ exports.drawWinner = async (req, res) => {
       user: winnerTicket.user, raffle: raffle._id, ticket: winnerTicket._id,
       prize: prize?.name || 'Grand Prize', prizeValue: prize?.value || 0,
       prizeEn: prize?.nameEn,
+    });
+
+    // Notify winner
+    await createNotification({
+      user: winnerTicket.user,
+      type: 'winner',
+      title: 'You Won!',
+      message: `Congratulations! You won the ${raffle.name} raffle with ticket ${winnerTicket.ticketNumber}. Prize: ${prize?.name || 'Grand Prize'}.`,
+      link: '/tickets',
     });
 
     res.json({ winner: winnerTicket, prize });

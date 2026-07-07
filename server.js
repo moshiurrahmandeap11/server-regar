@@ -50,7 +50,7 @@ app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/content', require('./routes/content'));
 app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/payments', require('./routes/payments'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 

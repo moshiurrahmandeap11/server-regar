@@ -4,6 +4,7 @@ const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const { sendInvoiceEmail } = require('./sendInvoiceEmail');
 const { resolveRaffleForProduct } = require('./raffleAssignment');
+const { createNotification } = require('../controllers/notificationController');
 
 const generateTicketNumbers = (count) => {
   const unique = new Set();
@@ -59,6 +60,15 @@ const fulfillPaidOrder = async (orderId, paymentUpdate = {}) => {
   if (ticketDocs.length) {
     await Ticket.insertMany(ticketDocs);
   }
+
+  // Notify user about order confirmation
+  await createNotification({
+    user: order.user,
+    type: 'order',
+    title: 'Order Confirmed',
+    message: `Your order ${order.orderNumber} has been confirmed and ${totalTicketCount} ticket(s) generated.`,
+    link: '/orders',
+  });
 
   try {
     const user = await User.findById(order.user).select('email firstName');

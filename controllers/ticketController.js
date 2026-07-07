@@ -1,6 +1,7 @@
 const Ticket = require('../models/Ticket');
 const Winner = require('../models/Winner');
 const Raffle = require('../models/Raffle');
+const { createNotification } = require('../controllers/notificationController');
 const { backfillMissingTicketRaffles, backfillTicketsForRaffle } = require('../utils/raffleAssignment');
 
 exports.getAllTickets = async (req, res) => {
@@ -130,6 +131,18 @@ exports.updateWinnerStatus = async (req, res) => {
       update.shippedAt = new Date();
     }
     const winner = await Winner.findByIdAndUpdate(req.params.id, update, { new: true });
+
+    // Notify user when prize is shipped
+    if (claimStatus === 'shipped' && trackingNumber) {
+      await createNotification({
+        user: winner.user,
+        type: 'winner',
+        title: 'Prize Shipped',
+        message: `Your prize has been shipped. Tracking number: ${trackingNumber}.`,
+        link: '/tickets',
+      });
+    }
+
     res.json(winner);
   } catch (error) {
     res.status(500).json({ message: error.message });
