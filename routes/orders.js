@@ -8,6 +8,6 @@ router.get('/track/:orderNumber', orderController.trackOrder);
 router.get('/:id', auth, orderController.getOrderById);
 router.post('/', auth, orderController.createOrder);
 router.put('/:id/status', auth, adminOnly, orderController.updateStatus);
-router.put('/:id/payment', auth, orderController.updatePayment);
+router.put('/:id/payment', auth, adminOnly, orderController.updatePayment);
 
 module.exports = router;

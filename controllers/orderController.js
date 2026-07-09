@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const Ticket = require('../models/Ticket');
 const Payment = require('../models/Payment');
+const Product = require('../models/Product');
 const { fulfillPaidOrder } = require('../utils/orderFulfillment');
 
 const generateOrderNumber = () => 'REG-' + Date.now().toString(36).toUpperCase();
@@ -93,7 +94,7 @@ exports.trackOrder = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, subtotal, shipping, discount, total } = req.body;
+    const { items, shippingAddress, shipping, discount } = req.body;
     const rawPaymentMethod = String(req.body?.paymentMethod || '').toLowerCase();
     const paymentMethod = rawPaymentMethod === 'card' ? 'stripe' : rawPaymentMethod;
 
@@ -105,10 +106,43 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: 'Order items are required' });
     }
 
+    // Validate items and recalculate totals server-side
+    const productIds = items.map(item => item.product).filter(Boolean);
+    const products = await Product.find({ _id: { $in: productIds } });
+    const productMap = new Map(products.map(p => [String(p._id), p]));
+
+    let calculatedSubtotal = 0;
+    for (const item of items) {
+      const product = productMap.get(String(item.product));
+      if (!product) {
+        return res.status(400).json({ message: `Product not found: ${item.product}` });
+      }
+      if (!product.isActive) {
+        return res.status(400).json({ message: `Product is not available: ${product.name}` });
+      }
+      if (product.stock < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${product.name}. Available: ${product.stock}, requested: ${item.quantity}` });
+      }
+      // Use server-side price, not client-provided price
+      const itemPrice = product.price;
+      const itemTotal = itemPrice * item.quantity;
+      calculatedSubtotal += itemTotal;
+      // Update item price to server-verified price
+      item.price = itemPrice;
+    }
+
+    const calculatedShipping = calculatedSubtotal > 100 ? 0 : 9.90;
+    const calculatedDiscount = Math.max(0, Number(discount) || 0);
+    const calculatedTotal = Math.max(0, calculatedSubtotal + calculatedShipping - calculatedDiscount);
+
     const orderNumber = generateOrderNumber();
     const order = new Order({
       user: req.user._id, orderNumber, items, shippingAddress,
-      subtotal, shipping, discount, total, paymentMethod,
+      subtotal: calculatedSubtotal,
+      shipping: calculatedShipping,
+      discount: calculatedDiscount,
+      total: calculatedTotal,
+      paymentMethod,
       paymentStatus: 'pending',
       status: 'awaiting_payment',
       tickets: [],

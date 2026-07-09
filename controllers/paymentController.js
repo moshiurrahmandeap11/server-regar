@@ -63,7 +63,7 @@ exports.list = async (req, res) => {
     );
 
     const fallbackOrders = await Order.find({
-      paymentMethod: { $in: ['stripe', 'manual'] },
+      paymentMethod: { $in: ['stripe', 'manual', 'card'] },
       _id: { $nin: [...knownOrderIds] },
     })
       .populate('user', 'firstName lastName email')
@@ -90,7 +90,17 @@ exports.list = async (req, res) => {
       synthetic: true,
     }));
 
-    const merged = [...list.map((item) => item.toObject()), ...synthesized]
+    const merged = [...list.map((item) => {
+      const obj = item.toObject({ getters: true, virtuals: false });
+      // Ensure populated fields are preserved
+      if (item.userId && typeof item.userId === 'object' && item.userId._id) {
+        obj.userId = item.userId;
+      }
+      if (item.orderId && typeof item.orderId === 'object' && item.orderId._id) {
+        obj.orderId = item.orderId;
+      }
+      return obj;
+    }), ...synthesized]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json(merged);
@@ -103,6 +113,22 @@ exports.get = async (req, res) => {
 
 exports.approve = async (req, res) => {
   try {
+    // Handle synthetic payments (IDs like 'order-{orderId}')
+    if (req.params.id.startsWith('order-')) {
+      const orderId = req.params.id.replace('order-', '');
+      const order = await Order.findByIdAndUpdate(orderId, {
+        paymentStatus: 'completed',
+        status: 'paid',
+      }, { new: true });
+      if (order) {
+        await fulfillPaidOrder(orderId, {
+          paymentMethod: order.paymentMethod,
+          providerPaymentId: order.providerPaymentId,
+        });
+      }
+      return res.json({ _id: req.params.id, orderId, status: 'paid', synthetic: true });
+    }
+
     const p = await Payment.findByIdAndUpdate(req.params.id, { status: 'approved', adminNote: req.body.note || '' }, { new: true });
     if (p && p.orderId) {
       await fulfillPaidOrder(p.orderId, {
@@ -116,6 +142,16 @@ exports.approve = async (req, res) => {
 
 exports.decline = async (req, res) => {
   try {
+    // Handle synthetic payments (IDs like 'order-{orderId}')
+    if (req.params.id.startsWith('order-')) {
+      const orderId = req.params.id.replace('order-', '');
+      const order = await Order.findByIdAndUpdate(orderId, {
+        paymentStatus: 'failed',
+        status: 'cancelled',
+      }, { new: true });
+      return res.json({ _id: req.params.id, orderId, status: 'declined', synthetic: true });
+    }
+
     const p = await Payment.findByIdAndUpdate(req.params.id, { status: 'declined', adminNote: req.body.note || '' }, { new: true });
     if (p?.orderId) {
       await Order.findByIdAndUpdate(p.orderId, {
