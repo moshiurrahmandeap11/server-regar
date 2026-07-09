@@ -3,58 +3,64 @@ const Ticket = require('../models/Ticket');
 
 const DRAW_ELIGIBLE_ORDER_STATUSES = ['paid', 'processing', 'shipped', 'delivered'];
 
-const pickBestRaffle = (raffles = []) => {
-  const priority = { active: 0, closed: 1, draft: 2, drawn: 3 };
-  return raffles.sort((a, b) => {
-    const statusDiff = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
-    if (statusDiff !== 0) return statusDiff;
-    return new Date(b.endDate || b.createdAt || 0) - new Date(a.endDate || a.createdAt || 0);
-  })[0] || null;
-};
-
-const resolveRaffleForProduct = async (productId, referenceDate = new Date()) => {
+/**
+ * Find the single raffle that should receive tickets for a product at a given purchase time.
+ * This is STRICT: only returns a raffle if the purchaseDate falls within [startDate, endDate].
+ * If multiple raffles overlap (shouldn't happen with proper admin usage), picks the one
+ * with the earliest endDate (most specific/current window).
+ */
+const resolveRaffleForProduct = async (productId, purchaseDate = new Date()) => {
   if (!productId) return null;
 
-  const date = referenceDate ? new Date(referenceDate) : new Date();
+  const date = new Date(purchaseDate);
   const product = productId.toString();
 
-  const matchingWindow = await Raffle.findOne({
+  // STRICT: Find raffles where purchaseDate falls within [startDate, endDate]
+  const matchingRaffles = await Raffle.find({
     product,
     status: { $in: ['active', 'closed', 'drawn'] },
     startDate: { $lte: date },
     endDate: { $gte: date },
   })
+    .select('_id startDate endDate createdAt')
+    .sort({ endDate: 1, createdAt: -1 }) // Most specific window first
+    .limit(5);
+
+  if (matchingRaffles.length > 0) {
+    return matchingRaffles[0]._id;
+  }
+
+  // Fallback: if no strict match, find the most recently ended raffle for this product
+  // (for backfilling old tickets where raffle dates may have changed)
+  const recentEnded = await Raffle.findOne({
+    product,
+    status: { $in: ['active', 'closed', 'drawn'] },
+    endDate: { $lte: date },
+  })
     .select('_id')
-    .sort({ endDate: 1 });
+    .sort({ endDate: -1 });
 
-  if (matchingWindow?._id) return matchingWindow._id;
+  if (recentEnded) return recentEnded._id;
 
-  const currentActive = await Raffle.findOne({
+  // Last resort: any active raffle for this product
+  const anyActive = await Raffle.findOne({
     product,
     status: 'active',
-    startDate: { $lte: new Date() },
-    endDate: { $gte: new Date() },
   })
     .select('_id')
-    .sort({ endDate: 1 });
+    .sort({ createdAt: -1 });
 
-  if (currentActive?._id) return currentActive._id;
-
-  const sameProductRaffles = await Raffle.find({
-    product,
-    status: { $in: ['active', 'closed', 'draft', 'drawn'] },
-  })
-    .select('_id status endDate createdAt')
-    .sort({ createdAt: -1, endDate: -1 })
-    .limit(20);
-
-  return pickBestRaffle(sameProductRaffles)?._id || null;
+  return anyActive?._id || null;
 };
 
 const getTicketReferenceDate = (ticket) => {
   return ticket?.order?.createdAt || ticket?.createdAt || new Date();
 };
 
+/**
+ * Backfill tickets that have no raffle assigned.
+ * Only assigns to raffles where the ticket's order date falls within the raffle window.
+ */
 const backfillMissingTicketRaffles = async (baseQuery = {}) => {
   const query = {
     ...baseQuery,
@@ -82,6 +88,10 @@ const backfillMissingTicketRaffles = async (baseQuery = {}) => {
   return updated;
 };
 
+/**
+ * Backfill tickets for a specific raffle.
+ * Only assigns tickets whose order date falls within this raffle's date window.
+ */
 const backfillTicketsForRaffle = async (raffle) => {
   if (!raffle?.product) return 0;
 
@@ -100,11 +110,13 @@ const backfillTicketsForRaffle = async (raffle) => {
     if (!productId || String(productId) !== String(raffle.product)) continue;
 
     const referenceDate = getTicketReferenceDate(ticket);
+    
+    // STRICT: Only assign if ticket's order date falls within raffle window
     const inWindow =
       (!raffle.startDate || referenceDate >= raffle.startDate) &&
       (!raffle.endDate || referenceDate <= raffle.endDate);
 
-    if (!inWindow && raffle.status !== 'active') continue;
+    if (!inWindow) continue;
 
     const $set = { raffle: raffle._id };
     if (!ticket.product) $set.product = productId;

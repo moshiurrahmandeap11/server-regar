@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Raffle = require('../models/Raffle');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const { sendInvoiceEmail } = require('./sendInvoiceEmail');
@@ -48,7 +49,14 @@ const fulfillPaidOrder = async (orderId, paymentUpdate = {}) => {
     }
 
     ticketOffset += qty;
-    await Product.findByIdAndUpdate(item.product, { $inc: { soldTickets: qty, stock: -qty } });
+    
+    // Increment per-raffle soldTickets instead of product soldTickets
+    if (raffleId) {
+      await Raffle.findByIdAndUpdate(raffleId, { $inc: { soldTickets: qty } });
+    }
+    
+    // Also decrement product stock
+    await Product.findByIdAndUpdate(item.product, { $inc: { stock: -qty } });
   }
 
   order.tickets = tickets;

@@ -60,7 +60,8 @@ productSchema.methods.ensureSlug = async function ensureSlug() {
 
 productSchema.pre('validate', async function setSlug(next) {
   try {
-    if (!this.slug || this.isModified('name') || this.isModified('nameEn')) {
+    // Only auto-generate slug if no custom slug was provided
+    if (!this.slug) {
       this.slug = await this.constructor.createUniqueSlug(this.nameEn || this.name, this._id);
     }
     next();

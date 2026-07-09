@@ -80,7 +80,6 @@ exports.getRaffles = async (req, res) => {
 
 exports.getRaffleById = async (req, res) => {
   try {
-    await syncExpiredRaffles();
     const raffle = await Raffle.findById(req.params.id).populate('product').populate('winner', 'firstName lastName');
     if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
     res.json(raffle);
@@ -95,13 +94,23 @@ exports.createRaffle = async (req, res) => {
     const last = await Raffle.findOne({}, { raffleNumber: 1 }).sort({ raffleNumber: -1 });
     const nextNumber = (last?.raffleNumber || 0) + 1;
 
-    const { prizes, ...rest } = req.body;
+    const { prizes, slug, ...rest } = req.body;
     const parsedPrizes = prizes ? JSON.parse(prizes) : [];
     const mergedPrizes = mergePrizeImages(parsedPrizes, req.files || []);
+
+    // If admin provided a custom slug, validate uniqueness
+    let finalSlug = slug ? slug.trim().toLowerCase() : null;
+    if (finalSlug) {
+      const existing = await Raffle.findOne({ slug: finalSlug });
+      if (existing) {
+        return res.status(400).json({ message: 'Slug already exists. Please use a different slug.' });
+      }
+    }
 
     const raffle = new Raffle({ 
       ...rest, 
       raffleNumber: nextNumber,
+      slug: finalSlug,
       prizes: mergedPrizes,
     });
     await raffle.save();
@@ -113,12 +122,29 @@ exports.createRaffle = async (req, res) => {
 
 exports.updateRaffle = async (req, res) => {
   try {
-    const { prizes, ...rest } = req.body;
+    const { prizes, slug, ...rest } = req.body;
     const updateData = { ...rest };
 
     if (prizes) {
       const parsedPrizes = JSON.parse(prizes);
       updateData.prizes = mergePrizeImages(parsedPrizes, req.files || []);
+    }
+
+    // Handle custom slug
+    if (slug !== undefined) {
+      const trimmedSlug = slug.trim().toLowerCase();
+      if (trimmedSlug) {
+        const existing = await Raffle.findOne({ slug: trimmedSlug, _id: { $ne: req.params.id } });
+        if (existing) {
+          return res.status(400).json({ message: 'Slug already exists. Please use a different slug.' });
+        }
+        updateData.slug = trimmedSlug;
+      }
+    }
+    
+    // Only auto-generate slug if name changed AND no custom slug was provided
+    if (!updateData.slug && (updateData.name || updateData.nameEn)) {
+      updateData.slug = await Raffle.createUniqueSlug(updateData.nameEn || updateData.name, req.params.id);
     }
 
     const raffle = await Raffle.findByIdAndUpdate(req.params.id, updateData, { new: true });
@@ -157,10 +183,32 @@ exports.deleteRaffle = async (req, res) => {
   }
 };
 
+exports.updateRaffleStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['draft', 'active', 'closed', 'drawn'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const raffle = await Raffle.findById(req.params.id);
+    if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
+
+    // Prevent activating a raffle that's already ended
+    if (status === 'active' && raffle.endDate && new Date(raffle.endDate) <= new Date()) {
+      return res.status(400).json({ message: 'Cannot activate a raffle that has already ended. Please extend the end date first.' });
+    }
+
+    raffle.status = status;
+    await raffle.save();
+    res.json(raffle);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.drawWinner = async (req, res) => {
   try {
-    await syncExpiredRaffles();
-
     const raffle = await Raffle.findById(req.params.id);
     if (!raffle) return res.status(404).json({ message: 'Raffle not found' });
 

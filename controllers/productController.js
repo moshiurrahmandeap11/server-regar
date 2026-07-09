@@ -69,12 +69,24 @@ exports.createProduct = async (req, res) => {
   try {
     const filesByField = getFilesByField(req.files || []);
     const images = filesByField.images || [];
-    const { colors, sizes, ...rest } = req.body;
+    const { colors, sizes, slug, ...rest } = req.body;
     const parsedColors = colors ? JSON.parse(colors) : [];
     const mergedColors = mergeColorImages(parsedColors, filesByField);
     const derivedImages = mergedColors.map((color) => color.image).filter(Boolean);
+    
+    // If admin provided a custom slug, use it; otherwise auto-generate
+    let finalSlug = slug ? slug.trim().toLowerCase() : null;
+    if (finalSlug) {
+      // Ensure uniqueness
+      const existing = await Product.findOne({ slug: finalSlug });
+      if (existing) {
+        return res.status(400).json({ message: 'Slug already exists. Please use a different slug.' });
+      }
+    }
+    
     const product = new Product({
       ...rest,
+      slug: finalSlug,
       images: images.length ? images : derivedImages,
       colors: mergedColors,
       sizes: sizes ? JSON.parse(sizes) : [],
@@ -88,7 +100,7 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { colors, sizes, ...rest } = req.body;
+    const { colors, sizes, slug, ...rest } = req.body;
     const updateData = { ...rest };
     const filesByField = getFilesByField(req.files || []);
 
@@ -108,7 +120,21 @@ exports.updateProduct = async (req, res) => {
     }
 
     if (sizes) updateData.sizes = JSON.parse(sizes);
-    if (updateData.name || updateData.nameEn) {
+    
+    // Handle custom slug
+    if (slug !== undefined) {
+      const trimmedSlug = slug.trim().toLowerCase();
+      if (trimmedSlug) {
+        const existing = await Product.findOne({ slug: trimmedSlug, _id: { $ne: req.params.id } });
+        if (existing) {
+          return res.status(400).json({ message: 'Slug already exists. Please use a different slug.' });
+        }
+        updateData.slug = trimmedSlug;
+      }
+    }
+    
+    // Only auto-generate slug if name changed AND no custom slug was provided
+    if (!updateData.slug && (updateData.name || updateData.nameEn)) {
       updateData.slug = await Product.createUniqueSlug(updateData.nameEn || updateData.name, req.params.id);
     }
 

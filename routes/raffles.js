@@ -8,6 +8,7 @@ router.get('/', raffleController.getRaffles);
 router.get('/:id', raffleController.getRaffleById);
 router.post('/', auth, adminOnly, uploadPrize.any(), raffleController.createRaffle);
 router.put('/:id', auth, adminOnly, uploadPrize.any(), raffleController.updateRaffle);
+router.patch('/:id/status', auth, adminOnly, raffleController.updateRaffleStatus);
 router.delete('/:id', auth, adminOnly, raffleController.deleteRaffle);
 router.post('/:id/draw', auth, adminOnly, raffleController.drawWinner);
 
