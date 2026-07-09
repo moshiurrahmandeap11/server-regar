@@ -51,6 +51,7 @@ app.use('/api/content', require('./routes/content'));
 app.use('/api/newsletters', require('./routes/newsletters'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/support', require('./routes/supportTickets'));
 
 app.use('/api/payments', require('./routes/payments'));
 
