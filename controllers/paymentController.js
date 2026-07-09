@@ -107,6 +107,17 @@ exports.list = async (req, res) => {
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
+exports.getMyPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate('orderId', 'orderNumber total createdAt');
+    res.json(payments.map(p => p.toObject()));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.get = async (req, res) => {
   try { const p = await Payment.findById(req.params.id); res.json(p); } catch (error) { res.status(500).json({ message: error.message }); }
 };
