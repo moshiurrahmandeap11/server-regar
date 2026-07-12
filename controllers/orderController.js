@@ -58,7 +58,20 @@ exports.getOrderById = async (req, res) => {
     if (!req.user.isAdmin && order.user._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
-    res.json(order);
+
+    // Enrich with payment info and ticket docs (same as getOrders)
+    const [paymentInfo, ticketDocs] = await Promise.all([
+      Payment.findOne({ orderId: order._id }).sort({ createdAt: -1 }),
+      Ticket.find({ order: order._id })
+        .populate('raffle', 'name nameEn raffleNumber status')
+        .select('order raffle ticketNumber'),
+    ]);
+
+    const o = order.toObject();
+    o.paymentInfo = paymentInfo || null;
+    o.ticketDocs = ticketDocs || [];
+
+    res.json(o);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

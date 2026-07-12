@@ -7,6 +7,8 @@ const winnerSchema = new mongoose.Schema({
   prize: { type: String, required: true },
   prizeEn: { type: String },
   prizeValue: { type: Number },
+  quote: { type: String },
+  quoteEn: { type: String },
   claimStatus: { type: String, enum: ['pending', 'claimed', 'shipped', 'delivered'], default: 'pending' },
   claimedAt: { type: Date },
   shippedAt: { type: Date },

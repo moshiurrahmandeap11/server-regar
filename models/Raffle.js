@@ -16,6 +16,8 @@ const raffleSchema = new mongoose.Schema({
   slug: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
   name: { type: String, required: true },
   nameEn: { type: String },
+  description: { type: String },
+  descriptionEn: { type: String },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },

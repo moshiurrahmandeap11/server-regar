@@ -196,7 +196,7 @@ exports.createStripeSession = async (req, res) => {
       payment_method_types: ['card'],
       line_items: [{ price_data: { currency: currency.toLowerCase(), product_data: { name: `Order ${orderId}` }, unit_amount: Math.round(amount * 100) }, quantity: 1 }],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL}/fr/confirmation?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONTEND_URL}/fr/confirmation?session_id={CHECKOUT_SESSION_ID}&orderId=${orderId}`,
       cancel_url: `${process.env.FRONTEND_URL}/fr/checkout`,
       metadata: { orderId: String(orderId), userId: String(req.user?._id || '') },
     });
