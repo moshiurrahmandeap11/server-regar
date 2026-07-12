@@ -8,7 +8,7 @@ const app = express();
 
 // Middleware
 const allowedOrigins = [
-  'http://localhost:3003',
+  'http://localhost:3000',
   'http://localhost:3100',
   'https://regar.ch',
   'https://www.regar.ch',

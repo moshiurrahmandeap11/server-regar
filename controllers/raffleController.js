@@ -47,7 +47,7 @@ exports.getRaffles = async (req, res) => {
     }
 
     const raffles = await Raffle.find(query)
-      .populate('product', 'name nameEn slug description descriptionEn images price soldTickets maxTickets raffleEndDate')
+      .populate('product', 'name nameEn slug description descriptionEn images price soldTickets maxTickets raffleEndDate colors')
       .sort({ createdAt: -1 });
     await Promise.all(raffles.map((raffle) => raffle.product?.ensureSlug?.()).filter(Boolean));
     await backfillMissingTicketRaffles();
