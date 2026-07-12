@@ -18,7 +18,7 @@ const resolveRaffleForProduct = async (productId, purchaseDate = new Date()) => 
   // STRICT: Find raffles where purchaseDate falls within [startDate, endDate]
   const matchingRaffles = await Raffle.find({
     product,
-    status: { $in: ['active', 'closed', 'drawn'] },
+    status: { $in: ['active', 'closed'] },
     startDate: { $lte: date },
     endDate: { $gte: date },
   })
@@ -34,7 +34,7 @@ const resolveRaffleForProduct = async (productId, purchaseDate = new Date()) => 
   // (for backfilling old tickets where raffle dates may have changed)
   const recentEnded = await Raffle.findOne({
     product,
-    status: { $in: ['active', 'closed', 'drawn'] },
+    status: { $in: ['active', 'closed'] },
     endDate: { $lte: date },
   })
     .select('_id')

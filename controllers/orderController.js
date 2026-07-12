@@ -1,5 +1,6 @@
-const Order = require('../models/Order');
+const Raffle = require('../models/Raffle');
 const Ticket = require('../models/Ticket');
+const Winner = require('../models/Winner');
 const Payment = require('../models/Payment');
 const Product = require('../models/Product');
 const { fulfillPaidOrder } = require('../utils/orderFulfillment');
@@ -111,6 +112,13 @@ exports.createOrder = async (req, res) => {
     const products = await Product.find({ _id: { $in: productIds } });
     const productMap = new Map(products.map(p => [String(p._id), p]));
 
+    // Check if any product is linked to a drawn raffle
+    const raffleChecks = await Raffle.find({
+      product: { $in: productIds },
+      status: 'drawn',
+    }).select('product status');
+    const drawnRaffleProductIds = new Set(raffleChecks.map(r => String(r.product)));
+
     let calculatedSubtotal = 0;
     for (const item of items) {
       const product = productMap.get(String(item.product));
@@ -122,6 +130,9 @@ exports.createOrder = async (req, res) => {
       }
       if (product.stock < item.quantity) {
         return res.status(400).json({ message: `Insufficient stock for ${product.name}. Available: ${product.stock}, requested: ${item.quantity}` });
+      }
+      if (drawnRaffleProductIds.has(String(item.product))) {
+        return res.status(400).json({ message: `Raffle already drawn for ${product.name}. You can no longer participate.` });
       }
       // Use server-side price, not client-provided price
       const itemPrice = product.price;
