@@ -112,12 +112,12 @@ exports.createOrder = async (req, res) => {
     const products = await Product.find({ _id: { $in: productIds } });
     const productMap = new Map(products.map(p => [String(p._id), p]));
 
-    // Check if any product is linked to a drawn raffle
+    // Check if any product is linked to a drawn or closed raffle
     const raffleChecks = await Raffle.find({
       product: { $in: productIds },
-      status: 'drawn',
+      status: { $in: ['drawn', 'closed'] },
     }).select('product status');
-    const drawnRaffleProductIds = new Set(raffleChecks.map(r => String(r.product)));
+    const blockedRaffleProductIds = new Set(raffleChecks.map(r => String(r.product)));
 
     let calculatedSubtotal = 0;
     for (const item of items) {
@@ -131,8 +131,8 @@ exports.createOrder = async (req, res) => {
       if (product.stock < item.quantity) {
         return res.status(400).json({ message: `Insufficient stock for ${product.name}. Available: ${product.stock}, requested: ${item.quantity}` });
       }
-      if (drawnRaffleProductIds.has(String(item.product))) {
-        return res.status(400).json({ message: `Raffle already drawn for ${product.name}. You can no longer participate.` });
+      if (blockedRaffleProductIds.has(String(item.product))) {
+        return res.status(400).json({ message: `Raffle has ended for ${product.name}. You can no longer participate.` });
       }
       // Use server-side price, not client-provided price
       const itemPrice = product.price;
