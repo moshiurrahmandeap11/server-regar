@@ -1,3 +1,4 @@
+const Order = require('../models/Order');
 const Raffle = require('../models/Raffle');
 const Ticket = require('../models/Ticket');
 const Winner = require('../models/Winner');

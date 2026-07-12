@@ -6,11 +6,16 @@ const orderSchema = new mongoose.Schema({
   items: [{
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     name: String,
+    nameEn: String,
     price: Number,
     quantity: Number,
     color: String,
     size: String,
     image: String,
+    raffle: { type: mongoose.Schema.Types.ObjectId, ref: 'Raffle' },
+    raffleNumber: Number,
+    raffleName: String,
+    raffleNameEn: String,
   }],
   shippingAddress: {
     firstName: String,

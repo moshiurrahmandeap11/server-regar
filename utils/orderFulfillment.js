@@ -34,9 +34,16 @@ const fulfillPaidOrder = async (orderId, paymentUpdate = {}) => {
 
   let ticketOffset = 0;
   const ticketDocs = [];
+  const updatedItems = [];
   for (const item of items) {
     const qty = item.quantity || 1;
     const raffleId = await resolveRaffleForProduct(item.product, order.createdAt);
+
+    // Fetch raffle details if resolved
+    let raffleInfo = null;
+    if (raffleId) {
+      raffleInfo = await Raffle.findById(raffleId).select('raffleNumber name nameEn');
+    }
 
     for (let i = 0; i < qty; i += 1) {
       ticketDocs.push({
@@ -50,6 +57,15 @@ const fulfillPaidOrder = async (orderId, paymentUpdate = {}) => {
 
     ticketOffset += qty;
     
+    // Store raffle info on the order item for display
+    updatedItems.push({
+      ...item.toObject?.() || item,
+      raffle: raffleId || undefined,
+      raffleNumber: raffleInfo?.raffleNumber || undefined,
+      raffleName: raffleInfo?.name || undefined,
+      raffleNameEn: raffleInfo?.nameEn || undefined,
+    });
+    
     // Increment per-raffle soldTickets instead of product soldTickets
     if (raffleId) {
       await Raffle.findByIdAndUpdate(raffleId, { $inc: { soldTickets: qty } });
@@ -59,6 +75,7 @@ const fulfillPaidOrder = async (orderId, paymentUpdate = {}) => {
     await Product.findByIdAndUpdate(item.product, { $inc: { stock: -qty } });
   }
 
+  order.items = updatedItems;
   order.tickets = tickets;
   order.paymentStatus = 'completed';
   order.status = 'paid';
