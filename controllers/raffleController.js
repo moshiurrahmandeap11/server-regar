@@ -90,13 +90,28 @@ exports.getRaffleById = async (req, res) => {
 
 exports.createRaffle = async (req, res) => {
   try {
-    // Auto-assign the next raffle number
-    const last = await Raffle.findOne({}, { raffleNumber: 1 }).sort({ raffleNumber: -1 });
-    const nextNumber = (last?.raffleNumber || 0) + 1;
-
-    const { prizes, slug, ...rest } = req.body;
+    const { prizes, slug, raffleNumber, ...rest } = req.body;
     const parsedPrizes = prizes ? JSON.parse(prizes) : [];
     const mergedPrizes = mergePrizeImages(parsedPrizes, req.files || []);
+
+    // If admin provided a custom raffle number, validate uniqueness
+    let finalRaffleNumber = null;
+    if (raffleNumber) {
+      const num = parseInt(raffleNumber, 10);
+      if (!isNaN(num) && num > 0) {
+        const existing = await Raffle.findOne({ raffleNumber: num });
+        if (existing) {
+          return res.status(400).json({ message: `Raffle number ${num} already exists. Please use a different number.` });
+        }
+        finalRaffleNumber = num;
+      }
+    }
+
+    // Auto-assign the next raffle number if none provided
+    if (!finalRaffleNumber) {
+      const last = await Raffle.findOne({}, { raffleNumber: 1 }).sort({ raffleNumber: -1 });
+      finalRaffleNumber = (last?.raffleNumber || 0) + 1;
+    }
 
     // If admin provided a custom slug, validate uniqueness
     let finalSlug = slug ? slug.trim().toLowerCase() : null;
@@ -109,7 +124,7 @@ exports.createRaffle = async (req, res) => {
 
     const raffle = new Raffle({ 
       ...rest, 
-      raffleNumber: nextNumber,
+      raffleNumber: finalRaffleNumber,
       slug: finalSlug,
       prizes: mergedPrizes,
     });
@@ -122,12 +137,24 @@ exports.createRaffle = async (req, res) => {
 
 exports.updateRaffle = async (req, res) => {
   try {
-    const { prizes, slug, ...rest } = req.body;
+    const { prizes, slug, raffleNumber, ...rest } = req.body;
     const updateData = { ...rest };
 
     if (prizes) {
       const parsedPrizes = JSON.parse(prizes);
       updateData.prizes = mergePrizeImages(parsedPrizes, req.files || []);
+    }
+
+    // Handle custom raffle number
+    if (raffleNumber !== undefined) {
+      const num = parseInt(raffleNumber, 10);
+      if (!isNaN(num) && num > 0) {
+        const existing = await Raffle.findOne({ raffleNumber: num, _id: { $ne: req.params.id } });
+        if (existing) {
+          return res.status(400).json({ message: `Raffle number ${num} already exists. Please use a different number.` });
+        }
+        updateData.raffleNumber = num;
+      }
     }
 
     // Handle custom slug
