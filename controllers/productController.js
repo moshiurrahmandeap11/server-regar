@@ -69,7 +69,17 @@ exports.createProduct = async (req, res) => {
   try {
     const filesByField = getFilesByField(req.files || []);
     const uploadedImages = filesByField.images || [];
-    const { colors, sizes, slug, imageOrder, ...rest } = req.body;
+    const { colors, sizes, slug, imageOrder, seoKeywords, ...rest } = req.body;
+    let parsedKeywords = [];
+    if (seoKeywords) {
+      try {
+        parsedKeywords = typeof seoKeywords === 'string'
+          ? (seoKeywords.trim().startsWith('[') ? JSON.parse(seoKeywords) : seoKeywords.split(',').map((k) => k.trim()).filter(Boolean))
+          : (Array.isArray(seoKeywords) ? seoKeywords : []);
+      } catch {
+        parsedKeywords = String(seoKeywords).split(',').map((k) => k.trim()).filter(Boolean);
+      }
+    }
     const parsedColors = colors ? JSON.parse(colors) : [];
     const mergedColors = mergeColorImages(parsedColors, filesByField);
     const cleanColors = mergedColors.filter((c) => c && (c.name?.trim() || c.image));
@@ -111,6 +121,7 @@ exports.createProduct = async (req, res) => {
       images: orderedImages.length ? orderedImages : derivedImages,
       colors: cleanColors,
       sizes: cleanSizes,
+      seoKeywords: parsedKeywords,
     });
     await product.save();
     res.status(201).json(product);
@@ -121,8 +132,21 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { colors, sizes, slug, images: bodyImages, imageOrder, ...rest } = req.body;
+    const { colors, sizes, slug, images: bodyImages, imageOrder, seoKeywords, ...rest } = req.body;
     const updateData = { ...rest };
+    if (seoKeywords !== undefined) {
+      let parsedKeywords = [];
+      if (seoKeywords) {
+        try {
+          parsedKeywords = typeof seoKeywords === 'string'
+            ? (seoKeywords.trim().startsWith('[') ? JSON.parse(seoKeywords) : seoKeywords.split(',').map((k) => k.trim()).filter(Boolean))
+            : (Array.isArray(seoKeywords) ? seoKeywords : []);
+        } catch {
+          parsedKeywords = String(seoKeywords).split(',').map((k) => k.trim()).filter(Boolean);
+        }
+      }
+      updateData.seoKeywords = parsedKeywords;
+    }
     const filesByField = getFilesByField(req.files || []);
     const uploadedImages = filesByField.images || [];
 

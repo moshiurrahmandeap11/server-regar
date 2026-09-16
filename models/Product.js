@@ -29,6 +29,11 @@ const productSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   featured: { type: Boolean, default: false },
   raffleEndDate: { type: Date },
+  metaTitle: { type: String, default: '' },
+  metaTitleEn: { type: String, default: '' },
+  metaDescription: { type: String, default: '' },
+  metaDescriptionEn: { type: String, default: '' },
+  seoKeywords: [{ type: String }],
 }, { timestamps: true });
 
 productSchema.statics.createUniqueSlug = async function createUniqueSlug(source, excludeId) {
