@@ -68,13 +68,30 @@ exports.getProductById = async (req, res) => {
 exports.createProduct = async (req, res) => {
   try {
     const filesByField = getFilesByField(req.files || []);
-    const images = filesByField.images || [];
-    const { colors, sizes, slug, ...rest } = req.body;
+    const uploadedImages = filesByField.images || [];
+    const { colors, sizes, slug, imageOrder, ...rest } = req.body;
     const parsedColors = colors ? JSON.parse(colors) : [];
     const mergedColors = mergeColorImages(parsedColors, filesByField);
     const cleanColors = mergedColors.filter((c) => c && (c.name?.trim() || c.image));
     const derivedImages = cleanColors.map((color) => color.image).filter(Boolean);
     
+    let orderedImages = uploadedImages;
+    if (imageOrder) {
+      try {
+        const order = typeof imageOrder === 'string' ? JSON.parse(imageOrder) : imageOrder;
+        if (Array.isArray(order) && order.length) {
+          const reordered = [];
+          order.forEach((token) => {
+            if (typeof token === 'string' && token.startsWith('new:')) {
+              const idx = parseInt(token.replace('new:', ''), 10);
+              if (uploadedImages[idx]) reordered.push(uploadedImages[idx]);
+            }
+          });
+          if (reordered.length) orderedImages = reordered;
+        }
+      } catch (e) {}
+    }
+
     const parsedSizes = sizes ? JSON.parse(sizes) : [];
     const cleanSizes = parsedSizes.filter((s) => s && String(s).trim());
     
@@ -91,7 +108,7 @@ exports.createProduct = async (req, res) => {
     const product = new Product({
       ...rest,
       slug: finalSlug,
-      images: images.length ? images : derivedImages,
+      images: orderedImages.length ? orderedImages : derivedImages,
       colors: cleanColors,
       sizes: cleanSizes,
     });
@@ -104,17 +121,42 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { colors, sizes, slug, images: bodyImages, ...rest } = req.body;
+    const { colors, sizes, slug, images: bodyImages, imageOrder, ...rest } = req.body;
     const updateData = { ...rest };
     const filesByField = getFilesByField(req.files || []);
+    const uploadedImages = filesByField.images || [];
 
-    if (filesByField.images?.length) {
-      updateData.images = filesByField.images;
-    } else if (bodyImages) {
+    let existingList = [];
+    if (bodyImages) {
       try {
         const parsed = typeof bodyImages === 'string' ? JSON.parse(bodyImages) : bodyImages;
-        if (Array.isArray(parsed) && parsed.length) updateData.images = parsed;
+        if (Array.isArray(parsed)) existingList = parsed;
       } catch (e) {}
+    }
+
+    if (imageOrder) {
+      try {
+        const order = typeof imageOrder === 'string' ? JSON.parse(imageOrder) : imageOrder;
+        if (Array.isArray(order) && order.length) {
+          const finalImages = [];
+          order.forEach((token) => {
+            if (typeof token === 'string') {
+              if (token.startsWith('existing:')) {
+                const idx = parseInt(token.replace('existing:', ''), 10);
+                if (existingList[idx]) finalImages.push(existingList[idx]);
+              } else if (token.startsWith('new:')) {
+                const idx = parseInt(token.replace('new:', ''), 10);
+                if (uploadedImages[idx]) finalImages.push(uploadedImages[idx]);
+              } else if (token.startsWith('http')) {
+                finalImages.push(token);
+              }
+            }
+          });
+          if (finalImages.length) updateData.images = finalImages;
+        }
+      } catch (e) {}
+    } else if (existingList.length || uploadedImages.length) {
+      updateData.images = [...existingList, ...uploadedImages];
     }
 
     if (colors !== undefined) {
