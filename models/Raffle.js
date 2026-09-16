@@ -22,7 +22,7 @@ const raffleSchema = new mongoose.Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   soldTickets: { type: Number, default: 0 },
-  maxTickets: { type: Number, default: 100 },
+  maxTickets: { type: Number },
   prizes: [{
     name: String,
     nameEn: String,

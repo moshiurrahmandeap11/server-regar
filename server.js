@@ -12,6 +12,8 @@ const allowedOrigins = [
   'http://localhost:3100',
   'https://regar.ch',
   'https://www.regar.ch',
+  'https://sanchoybondhu.com',
+  'https://www.sanchoybondhu.com',
   'https://regar-client.vercel.app',
   process.env.FRONTEND_URL,
   process.env.CLIENT_URL,

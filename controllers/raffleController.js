@@ -122,8 +122,27 @@ exports.createRaffle = async (req, res) => {
       }
     }
 
+    // Handle maxTickets
+    let finalMaxTickets = null;
+    if (maxTickets !== undefined && maxTickets !== null && String(maxTickets).trim() !== '') {
+      const parsedMax = parseInt(maxTickets, 10);
+      if (!isNaN(parsedMax) && parsedMax > 0) {
+        finalMaxTickets = parsedMax;
+      }
+    }
+    if (!finalMaxTickets && rest.product) {
+      const prod = await Product.findById(rest.product).select('maxTickets');
+      if (prod?.maxTickets) {
+        finalMaxTickets = prod.maxTickets;
+      }
+    }
+    if (!finalMaxTickets) {
+      finalMaxTickets = 100;
+    }
+
     const raffle = new Raffle({ 
       ...rest, 
+      maxTickets: finalMaxTickets,
       raffleNumber: finalRaffleNumber,
       slug: finalSlug,
       prizes: mergedPrizes,
@@ -137,12 +156,28 @@ exports.createRaffle = async (req, res) => {
 
 exports.updateRaffle = async (req, res) => {
   try {
-    const { prizes, slug, raffleNumber, ...rest } = req.body;
+    const { prizes, slug, raffleNumber, maxTickets, ...rest } = req.body;
     const updateData = { ...rest };
 
     if (prizes) {
       const parsedPrizes = JSON.parse(prizes);
       updateData.prizes = mergePrizeImages(parsedPrizes, req.files || []);
+    }
+
+    // Handle maxTickets
+    if (maxTickets !== undefined) {
+      const parsedMax = parseInt(maxTickets, 10);
+      if (!isNaN(parsedMax) && parsedMax > 0) {
+        updateData.maxTickets = parsedMax;
+      } else if (String(maxTickets).trim() === '') {
+        const prodId = rest.product || (await Raffle.findById(req.params.id).select('product'))?.product;
+        if (prodId) {
+          const prod = await Product.findById(prodId).select('maxTickets');
+          if (prod?.maxTickets) {
+            updateData.maxTickets = prod.maxTickets;
+          }
+        }
+      }
     }
 
     // Handle custom raffle number
