@@ -72,7 +72,11 @@ exports.createProduct = async (req, res) => {
     const { colors, sizes, slug, ...rest } = req.body;
     const parsedColors = colors ? JSON.parse(colors) : [];
     const mergedColors = mergeColorImages(parsedColors, filesByField);
-    const derivedImages = mergedColors.map((color) => color.image).filter(Boolean);
+    const cleanColors = mergedColors.filter((c) => c && (c.name?.trim() || c.image));
+    const derivedImages = cleanColors.map((color) => color.image).filter(Boolean);
+    
+    const parsedSizes = sizes ? JSON.parse(sizes) : [];
+    const cleanSizes = parsedSizes.filter((s) => s && String(s).trim());
     
     // If admin provided a custom slug, use it; otherwise auto-generate
     let finalSlug = slug ? slug.trim().toLowerCase() : null;
@@ -88,8 +92,8 @@ exports.createProduct = async (req, res) => {
       ...rest,
       slug: finalSlug,
       images: images.length ? images : derivedImages,
-      colors: mergedColors,
-      sizes: sizes ? JSON.parse(sizes) : [],
+      colors: cleanColors,
+      sizes: cleanSizes,
     });
     await product.save();
     res.status(201).json(product);
@@ -100,26 +104,35 @@ exports.createProduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { colors, sizes, slug, ...rest } = req.body;
+    const { colors, sizes, slug, images: bodyImages, ...rest } = req.body;
     const updateData = { ...rest };
     const filesByField = getFilesByField(req.files || []);
 
     if (filesByField.images?.length) {
       updateData.images = filesByField.images;
+    } else if (bodyImages) {
+      try {
+        const parsed = typeof bodyImages === 'string' ? JSON.parse(bodyImages) : bodyImages;
+        if (Array.isArray(parsed) && parsed.length) updateData.images = parsed;
+      } catch (e) {}
     }
 
-    if (colors) {
-      const parsedColors = JSON.parse(colors);
+    if (colors !== undefined) {
+      const parsedColors = colors ? JSON.parse(colors) : [];
       const mergedColors = mergeColorImages(parsedColors, filesByField);
-      updateData.colors = mergedColors;
+      const cleanColors = mergedColors.filter((c) => c && (c.name?.trim() || c.image));
+      updateData.colors = cleanColors;
 
       if (!updateData.images || updateData.images.length === 0) {
-        const derivedImages = mergedColors.map((color) => color.image).filter(Boolean);
+        const derivedImages = cleanColors.map((color) => color.image).filter(Boolean);
         if (derivedImages.length) updateData.images = derivedImages;
       }
     }
 
-    if (sizes) updateData.sizes = JSON.parse(sizes);
+    if (sizes !== undefined) {
+      const parsedSizes = sizes ? JSON.parse(sizes) : [];
+      updateData.sizes = parsedSizes.filter((s) => s && String(s).trim());
+    }
     
     // Handle custom slug
     if (slug !== undefined) {
