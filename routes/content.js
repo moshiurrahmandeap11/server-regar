@@ -3,6 +3,7 @@ const router = express.Router();
 const contentController = require('../controllers/contentController');
 const { auth, adminOnly } = require('../middleware/auth');
 const uploadQr = require('../middleware/uploadQr');
+const uploadBanner = require('../middleware/uploadBanner');
 
 router.get('/faq', contentController.getFaqs);
 router.post('/faq', auth, adminOnly, contentController.createFaq);
@@ -24,6 +25,10 @@ router.get('/payment-methods', contentController.getPaymentMethods);
 router.post('/payment-methods', auth, adminOnly, uploadQr.single('qrImage'), contentController.createPaymentMethod);
 router.put('/payment-methods/:id', auth, adminOnly, uploadQr.single('qrImage'), contentController.updatePaymentMethod);
 router.delete('/payment-methods/:id', auth, adminOnly, contentController.deletePaymentMethod);
+
+// Hero banner management
+router.get('/hero-banner', contentController.getHeroBanner);
+router.put('/hero-banner', auth, adminOnly, uploadBanner.single('bannerImage'), contentController.updateHeroBanner);
 
 router.get('/:key', contentController.getContent);
 router.put('/:key', auth, adminOnly, contentController.updateContent);

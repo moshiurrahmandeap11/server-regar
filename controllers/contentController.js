@@ -249,3 +249,100 @@ exports.deletePaymentMethod = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ─── Hero Banner Management ──────────────────────────────────────────────────
+
+const DEFAULT_HERO_BANNER = {
+  image: '',
+  buttonLink: '/products',
+  en: {
+    titleLine1: 'BUY A CAP.',
+    titleLine2: 'WIN BIG.',
+    subtitle: 'Purchase a cap and get automatic entry to win high-value prizes.',
+    buttonText: 'BUY CAP & ENTER',
+  },
+  fr: {
+    titleLine1: 'ACHETEZ UNE CASQUETTE.',
+    titleLine2: 'GAGNEZ GROS.',
+    subtitle: 'Achetez une casquette et obtenez une entree automatique pour gagner des prix de grande valeur.',
+    buttonText: 'ACHETER ET ENTRER',
+  },
+};
+
+exports.getHeroBanner = async (req, res) => {
+  try {
+    const doc = await Content.findOne({ key: 'hero-banner' });
+    if (!doc) {
+      return res.json(DEFAULT_HERO_BANNER);
+    }
+
+    let en = DEFAULT_HERO_BANNER.en;
+    let fr = DEFAULT_HERO_BANNER.fr;
+    if (doc.valueEn) {
+      try { en = { ...en, ...JSON.parse(doc.valueEn) }; } catch (e) {}
+    }
+    if (doc.valueFr) {
+      try { fr = { ...fr, ...JSON.parse(doc.valueFr) }; } catch (e) {}
+    }
+
+    const buttonLink = doc.meta?.buttonLink || DEFAULT_HERO_BANNER.buttonLink;
+
+    res.json({
+      image: doc.image || '',
+      buttonLink,
+      en,
+      fr,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateHeroBanner = async (req, res) => {
+  try {
+    const { en, fr, buttonLink, resetImage } = req.body;
+
+    let doc = await Content.findOne({ key: 'hero-banner' });
+    if (!doc) {
+      doc = new Content({ key: 'hero-banner' });
+    }
+
+    if (en) {
+      const parsedEn = typeof en === 'string' ? JSON.parse(en) : en;
+      doc.valueEn = JSON.stringify(parsedEn);
+    }
+    if (fr) {
+      const parsedFr = typeof fr === 'string' ? JSON.parse(fr) : fr;
+      doc.valueFr = JSON.stringify(parsedFr);
+    }
+
+    doc.meta = {
+      ...(doc.meta || {}),
+      buttonLink: buttonLink !== undefined ? String(buttonLink).trim() : (doc.meta?.buttonLink || '/products'),
+    };
+
+    if (resetImage === 'true' || resetImage === true) {
+      doc.image = '';
+    } else if (req.file?.path) {
+      doc.image = req.file.path;
+    } else if (req.body.image !== undefined) {
+      doc.image = req.body.image;
+    }
+
+    await doc.save();
+
+    let savedEn = DEFAULT_HERO_BANNER.en;
+    let savedFr = DEFAULT_HERO_BANNER.fr;
+    try { savedEn = { ...savedEn, ...JSON.parse(doc.valueEn) }; } catch (e) {}
+    try { savedFr = { ...savedFr, ...JSON.parse(doc.valueFr) }; } catch (e) {}
+
+    res.json({
+      image: doc.image || '',
+      buttonLink: doc.meta?.buttonLink || '/products',
+      en: savedEn,
+      fr: savedFr,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
