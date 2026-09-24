@@ -346,3 +346,88 @@ exports.updateHeroBanner = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ─── Newsletter Banner Management ─────────────────────────────────────────────
+
+const DEFAULT_NEWSLETTER_BANNER = {
+  image: '',
+  en: {
+    title: "Don't Miss Out!",
+    subtitle: 'Join our community and get exclusive updates on new raffles and special offers.',
+    buttonText: 'Subscribe',
+  },
+  fr: {
+    title: 'Ne manquez rien !',
+    subtitle: 'Rejoignez notre communaute et recevez des mises a jour exclusives sur les nouvelles tombolas et offres speciales.',
+    buttonText: 'Subscribe',
+  },
+};
+
+exports.getNewsletterBanner = async (req, res) => {
+  try {
+    const doc = await Content.findOne({ key: 'newsletter-banner' });
+    if (!doc) {
+      return res.json(DEFAULT_NEWSLETTER_BANNER);
+    }
+
+    let en = DEFAULT_NEWSLETTER_BANNER.en;
+    let fr = DEFAULT_NEWSLETTER_BANNER.fr;
+    if (doc.valueEn) {
+      try { en = { ...en, ...JSON.parse(doc.valueEn) }; } catch (e) {}
+    }
+    if (doc.valueFr) {
+      try { fr = { ...fr, ...JSON.parse(doc.valueFr) }; } catch (e) {}
+    }
+
+    res.json({
+      image: doc.image || '',
+      en,
+      fr,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateNewsletterBanner = async (req, res) => {
+  try {
+    const { en, fr, resetImage } = req.body;
+
+    let doc = await Content.findOne({ key: 'newsletter-banner' });
+    if (!doc) {
+      doc = new Content({ key: 'newsletter-banner' });
+    }
+
+    if (en) {
+      const parsedEn = typeof en === 'string' ? JSON.parse(en) : en;
+      doc.valueEn = JSON.stringify(parsedEn);
+    }
+    if (fr) {
+      const parsedFr = typeof fr === 'string' ? JSON.parse(fr) : fr;
+      doc.valueFr = JSON.stringify(parsedFr);
+    }
+
+    if (resetImage === 'true' || resetImage === true) {
+      doc.image = '';
+    } else if (req.file?.path) {
+      doc.image = req.file.path;
+    } else if (req.body.image !== undefined) {
+      doc.image = req.body.image;
+    }
+
+    await doc.save();
+
+    let savedEn = DEFAULT_NEWSLETTER_BANNER.en;
+    let savedFr = DEFAULT_NEWSLETTER_BANNER.fr;
+    try { savedEn = { ...savedEn, ...JSON.parse(doc.valueEn) }; } catch (e) {}
+    try { savedFr = { ...savedFr, ...JSON.parse(doc.valueFr) }; } catch (e) {}
+
+    res.json({
+      image: doc.image || '',
+      en: savedEn,
+      fr: savedFr,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

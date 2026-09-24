@@ -30,6 +30,10 @@ router.delete('/payment-methods/:id', auth, adminOnly, contentController.deleteP
 router.get('/hero-banner', contentController.getHeroBanner);
 router.put('/hero-banner', auth, adminOnly, uploadBanner.single('bannerImage'), contentController.updateHeroBanner);
 
+// Newsletter banner management
+router.get('/newsletter-banner', contentController.getNewsletterBanner);
+router.put('/newsletter-banner', auth, adminOnly, uploadBanner.single('newsletterImage'), contentController.updateNewsletterBanner);
+
 router.get('/:key', contentController.getContent);
 router.put('/:key', auth, adminOnly, contentController.updateContent);
 
