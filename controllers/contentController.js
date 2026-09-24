@@ -431,3 +431,195 @@ exports.updateNewsletterBanner = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ─── Winners Showcase (Social Proof) Management ────────────────────────────────
+
+const DEFAULT_WINNERS_SHOWCASE = {
+  header: {
+    fr: {
+      taglineLeft: "PLUS QU'UN PRODUIT — DES OPPORTUNITÉS",
+      taglineRight: "DES CLIENTS RÉELS · DES RÊVES RÉALISÉS · CHAQUE MOIS",
+      titlePrefix: "Nos derniers",
+      titleHighlight: "gagnants",
+      subtitle: "ILS ONT TENTÉ LEUR CHANCE, ILS ONT GAGNÉ",
+    },
+    en: {
+      taglineLeft: "MORE THAN A PRODUCT — OPPORTUNITIES",
+      taglineRight: "REAL CUSTOMERS · DREAMS REALIZED · EVERY MONTH",
+      titlePrefix: "Our latest",
+      titleHighlight: "winners",
+      subtitle: "THEY TOOK THEIR CHANCE, THEY WON",
+    },
+  },
+  winners: [
+    {
+      id: "w1",
+      name: "Mathieu D.",
+      image: "/images/winners/winner-1.jpg",
+      quoteFr: "“Incroyable ! Je n'y croyais pas en achetant mon produit du mois et me voilà aujourd'hui au volant d'une Classe G ! Merci REGAR 🙏!”",
+      quoteEn: "“Incredible! I didn't believe it when purchasing my product of the month, and here I am today at the wheel of a G-Class! Thank you REGAR 🙏!”",
+      prizeFr: "Gagnant Mercedes Classe G",
+      prizeEn: "Mercedes G-Class Winner",
+      dateFr: "Janvier 2025",
+      dateEn: "January 2025",
+    },
+    {
+      id: "w2",
+      name: "Chloé M.",
+      image: "/images/winners/winner-2.jpg",
+      quoteFr: "“Un rêve devenu réalité... Merci REGAR pour cette opportunité de dingue !”",
+      quoteEn: "“A dream come true... Thank you REGAR for this insane opportunity!”",
+      prizeFr: "Gagnante Lamborghini Urus",
+      prizeEn: "Lamborghini Urus Winner",
+      dateFr: "Février 2025",
+      dateEn: "February 2025",
+    },
+    {
+      id: "w3",
+      name: "Thomas L.",
+      image: "/images/winners/winner-3.jpg",
+      quoteFr: "“Reçu ma Rolex aujourd'hui ! Qualité au rendez-vous, expérience au top. Merci à toute l'équipe REGAR !”",
+      quoteEn: "“Received my Rolex today! Top quality, experience on point. Thanks to the whole REGAR team!”",
+      prizeFr: "Gagnant Rolex Submariner",
+      prizeEn: "Rolex Submariner Winner",
+      dateFr: "Mars 2025",
+      dateEn: "March 2025",
+    },
+    {
+      id: "w4",
+      name: "Laura P.",
+      image: "/images/winners/winner-4.jpg",
+      quoteFr: "“Je suis tellement heureuse ! Merci REGAR, je n'aurais jamais imaginé gagner une Rolex !”",
+      quoteEn: "“I am so happy! Thank you REGAR, I never thought I would win a Rolex!”",
+      prizeFr: "Gagnante Rolex Daytona",
+      prizeEn: "Rolex Daytona Winner",
+      dateFr: "Avril 2025",
+      dateEn: "April 2025",
+    },
+    {
+      id: "w5",
+      name: "Yassine K.",
+      image: "/images/winners/winner-5.jpg",
+      quoteFr: "“EXPÉRIENCE INCROYABLE ! L'Urus est juste exceptionnelle. Merci REGAR !”",
+      quoteEn: "“INCREDIBLE EXPERIENCE! The Urus is just exceptional. Thank you REGAR!”",
+      prizeFr: "Gagnant Lamborghini Urus",
+      prizeEn: "Lamborghini Urus Winner",
+      dateFr: "Mai 2025",
+      dateEn: "May 2025",
+    },
+    {
+      id: "w6",
+      name: "Enzo R.",
+      image: "/images/winners/winner-6.jpg",
+      quoteFr: "“Merci REGAR ! Ma Classe G est là. Tout est sérieux et transparent. Je recommande !”",
+      quoteEn: "“Thank you REGAR! My G-Class is here. Everything is serious and transparent. Highly recommend!”",
+      prizeFr: "Gagnant Mercedes Classe G",
+      prizeEn: "Mercedes G-Class Winner",
+      dateFr: "Juin 2025",
+      dateEn: "June 2025",
+    },
+  ],
+  badges: [
+    {
+      id: "b1",
+      icon: "Shield",
+      titleFr: "PARTENAIRES OFFICIELS",
+      subtitleFr: "GRANDES MARQUES",
+      titleEn: "OFFICIAL PARTNERS",
+      subtitleEn: "TOP BRANDS",
+    },
+    {
+      id: "b2",
+      icon: "Gem",
+      titleFr: "SÉCURISÉ ET FIABLE",
+      subtitleFr: "",
+      titleEn: "SECURE & RELIABLE",
+      subtitleEn: "",
+    },
+    {
+      id: "b3",
+      icon: "Users",
+      titleFr: "UNE COMMUNAUTÉ",
+      subtitleFr: "DE PASSIONNÉS",
+      titleEn: "A PASSIONATE",
+      subtitleEn: "COMMUNITY",
+    },
+  ],
+  cta: {
+    link: "/products",
+    fr: {
+      buttonText: "TENTEZ VOTRE CHANCE",
+      subtext: "AUJOURD'HUI UN PRODUIT, DEMAIN PEUT-ÊTRE VOUS",
+    },
+    en: {
+      buttonText: "TRY YOUR LUCK",
+      subtext: "TODAY A PRODUCT, TOMORROW MAYBE YOU",
+    },
+  },
+};
+
+exports.getWinnersShowcase = async (req, res) => {
+  try {
+    const doc = await Content.findOne({ key: 'winners_showcase' });
+    if (!doc || !doc.valueEn) {
+      return res.json(DEFAULT_WINNERS_SHOWCASE);
+    }
+
+    try {
+      const data = JSON.parse(doc.valueEn);
+      return res.json({
+        ...DEFAULT_WINNERS_SHOWCASE,
+        ...data,
+        header: {
+          fr: { ...DEFAULT_WINNERS_SHOWCASE.header.fr, ...(data?.header?.fr || {}) },
+          en: { ...DEFAULT_WINNERS_SHOWCASE.header.en, ...(data?.header?.en || {}) },
+        },
+        winners: Array.isArray(data?.winners) && data.winners.length ? data.winners : DEFAULT_WINNERS_SHOWCASE.winners,
+        badges: Array.isArray(data?.badges) && data.badges.length ? data.badges : DEFAULT_WINNERS_SHOWCASE.badges,
+        cta: {
+          link: data?.cta?.link || DEFAULT_WINNERS_SHOWCASE.cta.link,
+          fr: { ...DEFAULT_WINNERS_SHOWCASE.cta.fr, ...(data?.cta?.fr || {}) },
+          en: { ...DEFAULT_WINNERS_SHOWCASE.cta.en, ...(data?.cta?.en || {}) },
+        },
+      });
+    } catch (e) {
+      return res.json(DEFAULT_WINNERS_SHOWCASE);
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateWinnersShowcase = async (req, res) => {
+  try {
+    const payload = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body;
+
+    let doc = await Content.findOne({ key: 'winners_showcase' });
+    if (!doc) {
+      doc = new Content({ key: 'winners_showcase' });
+    }
+
+    // Handle any uploaded files for winner cards if present (e.g. winner_image_0, winner_image_1)
+    if (req.files && req.files.length) {
+      req.files.forEach((file) => {
+        const match = file.fieldname.match(/winner_image_(\d+)/);
+        if (match && payload.winners) {
+          const index = parseInt(match[1], 10);
+          if (payload.winners[index]) {
+            payload.winners[index].image = file.path;
+          }
+        }
+      });
+    }
+
+    doc.valueEn = JSON.stringify(payload);
+    await doc.save();
+
+    res.json({
+      success: true,
+      data: payload,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -34,6 +34,10 @@ router.put('/hero-banner', auth, adminOnly, uploadBanner.single('bannerImage'), 
 router.get('/newsletter-banner', contentController.getNewsletterBanner);
 router.put('/newsletter-banner', auth, adminOnly, uploadBanner.single('newsletterImage'), contentController.updateNewsletterBanner);
 
+// Winners Showcase (Social proof) management
+router.get('/winners-showcase', contentController.getWinnersShowcase);
+router.put('/winners-showcase', auth, adminOnly, uploadBanner.any(), contentController.updateWinnersShowcase);
+
 router.get('/:key', contentController.getContent);
 router.put('/:key', auth, adminOnly, contentController.updateContent);
 
